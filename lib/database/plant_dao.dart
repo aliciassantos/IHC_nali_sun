@@ -1,4 +1,5 @@
 // Operações CRUD da tabela 'plants'
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PlantDAO {
@@ -6,20 +7,20 @@ class PlantDAO {
 
   static const String _table = 'plants';
 
-  /// Obtém o ID do usuário autenticado.
+  /// Retorna o UUID do usuário autenticado.
   static String _getUserId() {
     final user = _supabase.auth.currentUser;
 
     if (user == null) {
       throw Exception(
-        'Você precisa estar autenticado para cadastrar uma planta.',
+        'Você precisa estar autenticado para realizar esta operação.',
       );
     }
 
     return user.id;
   }
 
-  /// Cadastra uma planta.
+  /// Cadastra uma planta para o usuário autenticado.
   static Future<Map<String, dynamic>> insertPlant({
     required String name,
     required String species,
@@ -35,35 +36,57 @@ class PlantDAO {
       'name': name.trim(),
       'species': species.trim(),
       'watering_frequency_days': wateringFrequencyDays,
-      'last_watered_at':
-          (lastWateredAt ?? DateTime.now()).toUtc().toIso8601String(),
+      'last_watered_at': lastWateredAt?.toUtc().toIso8601String(),
       'luminosity': luminosity,
       'image_path': imagePath,
     };
 
-    final response = await _supabase
-        .from(_table)
-        .insert(plantData)
-        .select()
-        .single();
+    try {
+      final response = await _supabase
+          .from(_table)
+          .insert(plantData)
+          .select()
+          .single();
 
-    return response;
+      debugPrint('Planta cadastrada: ${response['id']}');
+
+      return response;
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao cadastrar planta: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
   }
 
-  /// Lista as plantas do usuário autenticado.
+  /// Lista somente as plantas associadas ao usuário autenticado.
   static Future<List<Map<String, dynamic>>> getPlantsByUser() async {
     final userId = _getUserId();
 
-    final response = await _supabase
-        .from(_table)
-        .select()
-        .eq('user_id', userId)
-        .order('created_at', ascending: false);
+    try {
+      debugPrint('========== MEU JARDIM ==========');
+      debugPrint('Usuário autenticado: true');
+      debugPrint('UUID: $userId');
 
-    return List<Map<String, dynamic>>.from(response);
+      final response = await _supabase
+          .from(_table)
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      final plantas = List<Map<String, dynamic>>.from(response);
+
+      debugPrint('Plantas encontradas: ${plantas.length}');
+      debugPrint('================================');
+
+      return plantas;
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao carregar plantas: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
   }
 
-  /// Busca uma planta pelo ID.
+  /// Busca uma planta pelo ID, respeitando o proprietário.
   static Future<Map<String, dynamic>?> getPlantById(
     int plantId,
   ) async {
@@ -79,7 +102,7 @@ class PlantDAO {
     return response;
   }
 
-  /// Atualiza uma planta.
+  /// Atualiza uma planta pertencente ao usuário autenticado.
   static Future<Map<String, dynamic>> updatePlant({
     required int plantId,
     required String name,
@@ -96,8 +119,7 @@ class PlantDAO {
       'species': species.trim(),
       'watering_frequency_days': wateringFrequencyDays,
       'luminosity': luminosity,
-      'last_watered_at':
-          lastWateredAt?.toUtc().toIso8601String(),
+      'last_watered_at': lastWateredAt?.toUtc().toIso8601String(),
       'image_path': imagePath,
     };
 
@@ -112,7 +134,7 @@ class PlantDAO {
     return response;
   }
 
-  /// Exclui uma planta.
+  /// Exclui uma planta pertencente ao usuário autenticado.
   static Future<void> deletePlant(int plantId) async {
     final userId = _getUserId();
 

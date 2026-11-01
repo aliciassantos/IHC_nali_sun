@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'add_plants_screen.dart';
+import 'package:nali_sun_app/database/plant_dao.dart';
 
 class MyGardenScreen extends StatefulWidget {
   const MyGardenScreen({super.key});
@@ -11,7 +12,8 @@ class MyGardenScreen extends StatefulWidget {
 }
 
 class _MyGardenScreenState extends State<MyGardenScreen> {
-  // Paleta original do Nali-Sun
+  // ==================== PALETA DE CORES ====================
+
   static const Color fundoBege = Color(0xFFFBE4AE);
   static const Color verdeEscuro = Color(0xFF0B3740);
   static const Color verdeBase = Color(0xFF81B380);
@@ -19,15 +21,68 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   static const Color amareloCard = Color(0xFFD6D578);
   static const Color verdeChartreuse = Color(0xFFA7BF73);
 
+  // ==================== ESTADO DA TELA ====================
+
+  List<Map<String, dynamic>> _plantas = [];
+
+  bool _carregando = true;
+
+  String? _erro;
+
+  // ==================== CICLO DE VIDA ====================
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarPlantas();
+  }
+
+  // ==================== CARREGAR PLANTAS ====================
+
+  Future<void> _carregarPlantas() async {
+    if (!mounted) return;
+
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
+
+    try {
+      final plantas = await PlantDAO.getPlantsByUser();
+
+      if (!mounted) return;
+
+      setState(() {
+        _plantas = plantas;
+        _carregando = false;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao carregar plantas: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _erro = 'Não foi possível carregar suas plantas.';
+        _carregando = false;
+      });
+    }
+  }
+
+  // ==================== CONSTRUIR TELA ====================
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final escuro = tema.brightness == Brightness.dark;
 
     final fundo = tema.scaffoldBackgroundColor;
+
     final texto = escuro ? Colors.white : verdeEscuro;
-    final textoSecundario =
-        escuro ? Colors.white70 : verdeEscuro.withValues(alpha: 0.75);
+
+    final textoSecundario = escuro
+        ? Colors.white70
+        : verdeEscuro.withValues(alpha: 0.75);
 
     return Scaffold(
       backgroundColor: fundo,
@@ -35,22 +90,29 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
         child: Column(
           children: [
             _buildHeader(escuro),
+
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 20,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildGridPlantas(
-                      escuro: escuro,
-                      texto: texto,
-                      textoSecundario: textoSecundario,
-                    ),
-                  ],
+              child: RefreshIndicator(
+                onRefresh: _carregarPlantas,
+                color: verdeAcao,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildGridPlantas(
+                        escuro: escuro,
+                        texto: texto,
+                        textoSecundario: textoSecundario,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -75,12 +137,12 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                const Text(
                   'Meu Jardim',
                   style: TextStyle(
                     color: fundoBege,
@@ -88,10 +150,16 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 2),
+
+                const SizedBox(height: 2),
+
                 Text(
-                  '6 plantas · um cantinho de natureza',
-                  style: TextStyle(
+                  _carregando
+                      ? 'Carregando plantas...'
+                      : '${_plantas.length} '
+                          '${_plantas.length == 1 ? 'planta' : 'plantas'}'
+                          ' · um cantinho de natureza',
+                  style: const TextStyle(
                     color: fundoBege,
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
@@ -101,21 +169,16 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
             ),
           ),
 
-          // Botão para adicionar uma nova planta
+          const SizedBox(width: 12),
+
+          // Botão para adicionar uma planta.
           Material(
             color: verdeAcao,
             shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               customBorder: const CircleBorder(),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddPlantScreen(),
-                  ),
-                );
-              },
+              onTap: _abrirCadastroPlanta,
               child: const SizedBox(
                 width: 44,
                 height: 44,
@@ -132,6 +195,24 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     );
   }
 
+  // ==================== ABRIR CADASTRO ====================
+
+  Future<void> _abrirCadastroPlanta() async {
+    final resultado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddPlantScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    // Atualiza a lista somente quando o cadastro retorna true.
+    if (resultado == true) {
+      await _carregarPlantas();
+    }
+  }
+
   // ==================== GRID DE PLANTAS ====================
 
   Widget _buildGridPlantas({
@@ -139,49 +220,104 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     required Color texto,
     required Color textoSecundario,
   }) {
-    final List<Map<String, dynamic>> plantas = [
-      {
-        'nome': 'Monstera',
-        'cientifico': 'Monstera deliciosa',
-        'status': 'Em dia',
-        'corCard': verdeChartreuse,
-        'corBadge': fundoBege,
-        'iconeBadge': Icons.check_circle_outline,
-        'imagem': 'assets/img/plantinha1.jpg',
-      },
-      {
-        'nome': 'Jiboia',
-        'cientifico': 'Epipremnum aureum',
-        'status': 'Regar hoje',
-        'corCard': verdeBase,
-        'corBadge': verdeBase,
-        'iconeBadge': Icons.water_drop_outlined,
-        'imagem': 'assets/img/plantinha1.jpg',
-      },
-      {
-        'nome': 'Samambaia',
-        'cientifico': 'Nephrolepis exaltata',
-        'status': 'Regar hoje',
-        'corCard': verdeChartreuse,
-        'corBadge': verdeBase,
-        'iconeBadge': Icons.water_drop_outlined,
-        'imagem': 'assets/img/plantinha1.jpg',
-      },
-      {
-        'nome': 'Suculenta',
-        'cientifico': 'Echeveria elegans',
-        'status': 'Rega atrasada',
-        'corCard': verdeBase,
-        'corBadge': amareloCard,
-        'iconeBadge': Icons.warning_amber_rounded,
-        'imagem': 'assets/img/plantinha1.jpg',
-      },
-    ];
+    // Estado de carregamento.
+    if (_carregando) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
+    // Estado de erro.
+    if (_erro != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 52,
+                color: escuro ? Colors.orangeAccent : Colors.redAccent,
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                _erro!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: texto,
+                  fontSize: 15,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              ElevatedButton.icon(
+                onPressed: _carregarPlantas,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Estado vazio.
+    if (_plantas.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 48,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.eco_outlined,
+              size: 64,
+              color: escuro ? verdeBase : verdeEscuro,
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              'Seu jardim está vazio',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: texto,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Toque no botão + para adicionar sua primeira planta.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: textoSecundario,
+                fontSize: 14,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            
+          ],
+        ),
+      );
+    }
+
+    // Lista dinâmica das plantas cadastradas.
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: plantas.length,
+      itemCount: _plantas.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 14,
@@ -189,16 +325,27 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
         childAspectRatio: 0.72,
       ),
       itemBuilder: (context, index) {
-        final planta = plantas[index];
+        final planta = _plantas[index];
+
+        final nome = planta['name']?.toString() ?? 'Planta';
+
+        final especie = planta['species']?.toString() ?? '';
+
+        final id = planta['id'];
+
+        final imagemPath = planta['image_path']?.toString() ?? '';
 
         return _buildCardPlanta(
-          nome: planta['nome'] as String,
-          cientifico: planta['cientifico'] as String,
-          status: planta['status'] as String,
-          corCard: planta['corCard'] as Color,
-          corBadge: planta['corBadge'] as Color,
-          iconeBadge: planta['iconeBadge'] as IconData,
-          imagemUrl: planta['imagem'] as String,
+          id: id,
+          nome: nome,
+          cientifico: especie.isEmpty
+              ? 'Espécie não informada'
+              : especie,
+          status: 'Cuidados cadastrados',
+          corCard: index.isEven ? verdeChartreuse : verdeBase,
+          corBadge: fundoBege,
+          iconeBadge: Icons.eco_outlined,
+          imagemUrl: imagemPath,
           escuro: escuro,
           texto: texto,
           textoSecundario: textoSecundario,
@@ -210,6 +357,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   // ==================== CARD DA PLANTA ====================
 
   Widget _buildCardPlanta({
+    required dynamic id,
     required String nome,
     required String cientifico,
     required String status,
@@ -221,8 +369,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     required Color texto,
     required Color textoSecundario,
   }) {
-    // No tema escuro, os cards também ficam escuros.
-    // No tema claro, preservam as cores originais.
+    // Cores adaptadas ao tema.
     final corFundoCard = escuro
         ? const Color(0xFF1B383C)
         : corCard;
@@ -247,7 +394,9 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: escuro ? 0.12 : 0.08),
+            color: Colors.black.withValues(
+              alpha: escuro ? 0.12 : 0.08,
+            ),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -256,36 +405,21 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Imagem da planta
+          // Imagem ou ícone provisório da planta.
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                imagemUrl,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: double.infinity,
-                    color: escuro
-                        ? const Color(0xFF294448)
-                        : Colors.black12,
-                    child: Icon(
-                      Icons.eco,
-                      color: escuro ? verdeBase : verdeEscuro,
-                      size: 40,
-                    ),
-                  );
-                },
+              child: _construirImagemPlanta(
+                imagemPath: imagemUrl,
+                escuro: escuro,
               ),
             ),
           ),
 
           const SizedBox(height: 8),
 
-          // Nome popular e menu
+          // Nome popular e menu de opções.
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Text(
@@ -299,10 +433,11 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                   ),
                 ),
               ),
+
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(
-                  minWidth: 140,
+                  minWidth: 150,
                 ),
                 icon: Icon(
                   Icons.more_vert,
@@ -310,24 +445,32 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                   size: 20,
                 ),
                 onSelected: (opcao) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        opcao == 'detalhes'
-                            ? 'Detalhes de $nome em breve.'
-                            : 'Edição de $nome em breve.',
-                      ),
-                    ),
+                  _selecionarOpcao(
+                    opcao: opcao,
+                    id: id,
+                    nome: nome,
                   );
                 },
                 itemBuilder: (context) => const [
                   PopupMenuItem(
                     value: 'detalhes',
-                    child: Text('Ver detalhes'),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Ver detalhes'),
+                      ],
+                    ),
                   ),
                   PopupMenuItem(
                     value: 'editar',
-                    child: Text('Editar planta'),
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, size: 20),
+                        SizedBox(width: 8),
+                        Text('Editar planta'),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -336,7 +479,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
 
           const SizedBox(height: 2),
 
-          // Nome científico
+          // Espécie da planta.
           Text(
             cientifico,
             maxLines: 1,
@@ -351,7 +494,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
 
           const SizedBox(height: 8),
 
-          // Indicador de status
+          // Indicador informativo.
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 8,
@@ -369,7 +512,9 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                   color: corTextoBadge,
                   size: 12,
                 ),
+
                 const SizedBox(width: 4),
+
                 Flexible(
                   child: Text(
                     status,
@@ -377,7 +522,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: corTextoBadge,
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -386,6 +531,89 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==================== IMAGEM DA PLANTA ====================
+
+  Widget _construirImagemPlanta({
+    required String imagemPath,
+    required bool escuro,
+  }) {
+    final corFundo = escuro
+        ? const Color(0xFF294448)
+        : Colors.black12;
+
+    // Sem imagem cadastrada: mostra um ícone.
+    if (imagemPath.isEmpty) {
+      return Container(
+        width: double.infinity,
+        color: corFundo,
+        child: Icon(
+          Icons.eco,
+          color: escuro ? verdeBase : verdeEscuro,
+          size: 40,
+        ),
+      );
+    }
+
+    // URLs HTTP/HTTPS: tenta carregar uma imagem da internet.
+    if (imagemPath.startsWith('https://') ||
+        imagemPath.startsWith('http://')) {
+      return Image.network(
+        imagemPath,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _imagemAlternativa(corFundo, escuro);
+        },
+      );
+    }
+
+    // Caminhos locais ou assets não são interpretados
+    // automaticamente, pois dependem de como a imagem foi salva.
+    return _imagemAlternativa(corFundo, escuro);
+  }
+
+  Widget _imagemAlternativa(Color corFundo, bool escuro) {
+    return Container(
+      width: double.infinity,
+      color: corFundo,
+      child: Icon(
+        Icons.eco,
+        color: escuro ? verdeBase : verdeEscuro,
+        size: 40,
+      ),
+    );
+  }
+
+  // ==================== OPÇÕES DO CARD ====================
+
+  void _selecionarOpcao({
+    required String opcao,
+    required dynamic id,
+    required String nome,
+  }) {
+    String mensagem;
+
+    switch (opcao) {
+      case 'detalhes':
+        mensagem = 'A tela de detalhes de $nome ainda precisa ser implementada.';
+        break;
+
+      case 'editar':
+        mensagem = 'A edição de $nome ainda precisa ser implementada.';
+        break;
+
+      default:
+        return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

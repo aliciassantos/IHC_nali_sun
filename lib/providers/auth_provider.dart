@@ -2,11 +2,11 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../database/user_dao.dart';
+
 
 SupabaseClient get supabase => Supabase.instance.client;
 
@@ -55,10 +55,11 @@ class AuthProvider extends ChangeNotifier {
       if (userId != null) {
         _currentUser = await UserDAO.getUserById(userId);
 
-        // Se o usuário não existir mais no banco, limpa a sessão.
         if (_currentUser == null) {
           await supabase.auth.signOut();
         }
+      } else {
+        _currentUser = null;
       }
     } catch (_) {
       _currentUser = null;
@@ -74,11 +75,10 @@ class AuthProvider extends ChangeNotifier {
     try {
       final user = await _authService.login(email: email, password: password);
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('logged_user_id', user.id);
-
       _currentUser = user;
       _errorMessage = null;
+      _sessionChecked = true;
+
       return true;
     } catch (e) {
       _errorMessage = _mensagemErro(e);
@@ -92,15 +92,24 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
 
     try {
-      // 👈 Chamada corrigida para usar o _authService
       final user = await _authService.register(
         name: name,
         email: email,
         password: password,
       );
 
-      _currentUser = user;
+      final authUser = supabase.auth.currentUser;
+
+      // Só define o usuário atual se houver uma sessão correspondente.
+      if (authUser != null && authUser.id == user.id) {
+        _currentUser = user;
+      } else {
+        _currentUser = null;
+      }
+
       _errorMessage = null;
+      _sessionChecked = true;
+
       return true;
     } catch (e) {
       _errorMessage = _mensagemErro(e);
@@ -114,7 +123,10 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
 
     try {
-      await _authService.resetPassword(email: email);
+      await _authService.resetPassword(
+        email: email,
+        redirectTo: 'http://localhost:3000/#/reset-password',
+      );
 
       _errorMessage = null;
       return true;
@@ -127,12 +139,15 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await supabase.auth.signOut();
+    try {
+      await _authService.logout();
 
-    _currentUser = null;
-    _errorMessage = null;
-    _isRecoveringPassword = false;
-    notifyListeners();
+      _currentUser = null;
+      _errorMessage = null;
+      _isRecoveringPassword = false;
+    } finally {
+      notifyListeners();
+    }
   }
 
   void clearPasswordRecoveryFlag() {

@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-
+import 'package:nali_sun_app/database/plant_dao.dart';
 import 'package:nali_sun_app/services/kindwise_service.dart';
 
 class AddPlantScreen extends StatefulWidget {
@@ -322,23 +322,27 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   // SALVAR
   // ======================================================================
 
-  void _salvarPlanta() {
-    if (_formKey.currentState!.validate()) {
-      FocusScope.of(context).unfocus();
+  Future<void> _salvarPlanta() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      final dadosPlanta = {
-        'nome': _nomeController.text.trim(),
-        'especie': _especieController.text.trim(),
-        'frequencia_rega_dias': _frequenciaRega.round(),
-        'luminosidade': _niveisLuminosidade[_luminosidadeIndex.round()],
-        // Dados da espécie vindos do Kindwise (null se o usuário digitou
-        // a espécie manualmente, sem escolher uma sugestão)
-        'kindwise': _especieSelecionada?.toDbMap(),
-      };
-      debugPrint('Planta a salvar: $dadosPlanta');
+    FocusScope.of(context).unfocus();
 
-      // TODO: salvar `dadosPlanta` no Supabase / Provider
-      // (ex.: supabase.from('plantas').insert({...}))
+    final nome = _nomeController.text.trim();
+    final especie = _especieController.text.trim();
+    final frequenciaRega = _frequenciaRega.round();
+    final luminosidade = _niveisLuminosidade[_luminosidadeIndex.round()];
+
+    try {
+      await PlantDAO.insertPlant(
+        name: nome,
+        species: especie,
+        wateringFrequencyDays: frequenciaRega,
+        luminosity: luminosidade,
+      );
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -347,7 +351,21 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         ),
       );
 
-      Navigator.pop(context);
+      // Informa à tela anterior que uma planta foi cadastrada.
+      Navigator.pop(context, true);
+    } catch (e) {
+      debugPrint('Erro ao salvar planta no Supabase: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível cadastrar a planta. Tente novamente.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -609,10 +627,8 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           shrinkWrap: true,
           padding: EdgeInsets.zero,
           itemCount: itens.length,
-          separatorBuilder: (context, index) => Divider(
-            height: 1,
-            color: verdeBorda.withValues(alpha: 0.3),
-          ),
+          separatorBuilder: (context, index) =>
+              Divider(height: 1, color: verdeBorda.withValues(alpha: 0.3)),
           itemBuilder: (context, index) {
             final item = itens[index];
             return ListTile(
