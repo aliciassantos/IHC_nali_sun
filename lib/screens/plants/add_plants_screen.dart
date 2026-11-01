@@ -18,6 +18,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
   final _especieController = TextEditingController();
+  String? _fotoPath;
 
   // ---------- Busca por nome (Kindwise) ----------
   final KindwisePlantService _plantService = KindwisePlantService();
@@ -281,6 +282,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     _debounce?.cancel();
     setState(() {
       _fotoBytes = bytes;
+      _fotoPath = arquivo!.path;
       _isIdentifying = true;
       _resultadosFoto = [];
       _mensagemFoto = null;
@@ -335,11 +337,18 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     final luminosidade = _niveisLuminosidade[_luminosidadeIndex.round()];
 
     try {
+      String? imageUrl;
+
+      if (_fotoBytes != null) {
+        imageUrl = await PlantDAO.uploadFotoSupabase(_fotoBytes!);
+      }
+
       await PlantDAO.insertPlant(
         name: nome,
         species: especie,
         wateringFrequencyDays: frequenciaRega,
         luminosity: luminosidade,
+        imagePath: imageUrl
       );
 
       if (!mounted) return;

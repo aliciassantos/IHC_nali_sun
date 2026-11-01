@@ -20,6 +20,32 @@ class PlantDAO {
     return user.id;
   }
 
+  static Future<String?> uploadFotoSupabase(Uint8List bytes) async {
+    try {
+      // Cria um nome único para o arquivo usando o timestamp
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = 'plants/$fileName';
+
+      // Upload dos bytes
+      await _supabase.storage
+          .from('plant-photos')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg'),
+          );
+
+      // Pega a URL pública acessível de qualquer dispositivo
+      final publicUrl = _supabase.storage
+          .from('plant-photos')
+          .getPublicUrl(path);
+      return publicUrl;
+    } catch (e) {
+      debugPrint('Erro no upload da foto: $e');
+      return null;
+    }
+  }
+
   /// Cadastra uma planta para o usuário autenticado.
   static Future<Map<String, dynamic>> insertPlant({
     required String name,
@@ -87,9 +113,7 @@ class PlantDAO {
   }
 
   /// Busca uma planta pelo ID, respeitando o proprietário.
-  static Future<Map<String, dynamic>?> getPlantById(
-    int plantId,
-  ) async {
+  static Future<Map<String, dynamic>?> getPlantById(int plantId) async {
     final userId = _getUserId();
 
     final response = await _supabase
