@@ -1,108 +1,122 @@
 // Tela contendo a BottomNavigationBar e IndexedStack
 // Navegação principal do footer
+
 import 'package:flutter/material.dart';
 
-import '../screens/home/home_screen.dart';
-import '../screens/plants/plants_screen.dart';
-import '../screens/calendar/calendar_screen.dart';
-import '../screens/profile/profile_screen.dart';
-import '../screens/tips/tips_screen.dart';
-// importe as outras telas (calendar, tips, profile)...
+import 'package:nali_sun_app/screens/home/home_screen.dart';
+import 'package:nali_sun_app/screens/plants/plants_screen.dart';
+import 'package:nali_sun_app/screens/calendar/calendar_screen.dart';
+import 'package:nali_sun_app/screens/tips/tips_screen.dart';
+import 'package:nali_sun_app/screens/profile/profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
   @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+  State<MainNavigationScreen> createState() =>
+      _MainNavigationScreenState();
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  // Índice da aba selecionada.
   int _indiceAtual = 0;
 
-  // Lista de todas as telas das abas
-  final List<Widget> _telas = const [
-    HomeScreen(),
-    MyGardenScreen(),
-    CalendarScreen(),
-    TipsScreen(),
-    ProfileScreen()
+  // Chave para acessar os métodos públicos da Home.
+  final GlobalKey<HomeScreenState> _homeKey =
+      GlobalKey<HomeScreenState>();
+
+  // Todas as telas do aplicativo.
+  // A ordem deve ser mantida para corresponder aos índices.
+  late final List<Widget> _telas = [
+    HomeScreen(
+      key: _homeKey,
+      onNavigateToTab: _selecionarAba,
+    ),
+    const MyGardenScreen(),
+    const CalendarScreen(),
+    const TipsScreen(),
+    const ProfileScreen(),
   ];
+
+  // =========================================================
+  // NAVEGAÇÃO ENTRE AS ABAS
+  // =========================================================
+
+  void _selecionarAba(int index) {
+    if (index < 0 || index >= _telas.length) return;
+
+    setState(() {
+      _indiceAtual = index;
+    });
+
+    // Quando o usuário retorna à Home,
+    // atualiza os dados das plantas.
+    if (index == 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+
+        _homeKey.currentState?.atualizarPlantas();
+      });
+    }
+  }
+
+  // =========================================================
+  // BARRA DE NAVEGAÇÃO INFERIOR
+  // =========================================================
+
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: _indiceAtual,
+      onTap: _selecionarAba,
+      type: BottomNavigationBarType.fixed,
+      backgroundColor: const Color(0xFF0B3740),
+      selectedItemColor: const Color(0xFFFBE4AE),
+      unselectedItemColor: const Color(0xFFDACB8A),
+      selectedFontSize: 12,
+      unselectedFontSize: 11,
+      showUnselectedLabels: true,
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home_outlined),
+          activeIcon: Icon(Icons.home),
+          label: 'Início',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.eco_outlined),
+          activeIcon: Icon(Icons.eco),
+          label: 'Plantas',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.calendar_today_outlined),
+          activeIcon: Icon(Icons.calendar_today),
+          label: 'Calendário',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.menu_book_outlined),
+          activeIcon: Icon(Icons.menu_book),
+          label: 'Dicas',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline),
+          activeIcon: Icon(Icons.person),
+          label: 'Perfil',
+        ),
+      ],
+    );
+  }
+
+  // =========================================================
+  // CONSTRUIR TELA
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // O IndexedStack mantêm o estado de rolagem e dados de todas as telas
       body: IndexedStack(
         index: _indiceAtual,
         children: _telas,
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      color: const Color(0xFF0B3740),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: BottomNavigationBar(
-          backgroundColor: const Color(0xFF0B3740),
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _indiceAtual,
-          selectedItemColor: const Color(0xFFFBE4AE),
-          unselectedItemColor: const Color(0xFFDACB8A),
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          // Apenas altera o índice local, sem usar Navigator!
-          onTap: (index) => setState(() => _indiceAtual = index),
-          items: [
-            BottomNavigationBarItem(
-              icon: _buildNavIcon(Icons.home_outlined, Icons.home_filled, 0),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: _buildNavIcon(Icons.eco_outlined, Icons.eco, 1),
-              label: 'Plantas',
-            ),
-            BottomNavigationBarItem(
-              icon: _buildNavIcon(Icons.calendar_today_outlined, Icons.calendar_today, 2),
-              label: 'Agenda',
-            ),
-            BottomNavigationBarItem(
-              icon: _buildNavIcon(Icons.menu_book_outlined, Icons.menu_book, 3),
-              label: 'Dicas',
-            ),
-            BottomNavigationBarItem(
-              icon: _buildNavIcon(Icons.person_outline, Icons.person, 4),
-              label: 'Perfil',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavIcon(IconData iconeNormal, IconData iconeSelecionado, int index) {
-    final bool selecionado = _indiceAtual == index;
-    return AnimatedScale(
-      scale: selecionado ? 1.12 : 1.0,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: selecionado ? const Color(0xFF258A60) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Icon(
-          selecionado ? iconeSelecionado : iconeNormal,
-          color: selecionado ? const Color(0xFFFBE4AE) : const Color(0xFFDACB8A),
-          size: 20,
-        ),
-      ),
     );
   }
 }

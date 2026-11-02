@@ -1,24 +1,46 @@
 
 import 'package:flutter/material.dart';
 
-class TipsScreen extends StatefulWidget {
+import '../../models/article_model.dart';
+import '../../repositories/article_repository.dart';
+import 'article_details_screen.dart';
+
+class TipsScreen extends StatelessWidget {
   const TipsScreen({super.key});
 
-  @override
-  State<TipsScreen> createState() => _TipsScreenState();
-}
-
-class _TipsScreenState extends State<TipsScreen> {
-  // Paleta de cores do Nali-Sun
+  // Paleta de cores do NaliSun.
   static const Color fundoBege = Color(0xFFFBE4AE);
   static const Color verdeEscuro = Color(0xFF0B3740);
   static const Color verdeAcao = Color(0xFF258A60);
   static const Color textoCardEscuro = Color(0xFF392E0E);
 
+  // =========================================================
+  // NAVEGAÇÃO PARA O ARTIGO COMPLETO
+  // =========================================================
+
+  void _abrirArtigo(BuildContext context, ArticleModel artigo) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ArticleDetailsScreen(
+          article: artigo,
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // CONSTRUIR TELA
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final escuro = tema.brightness == Brightness.dark;
+
+    // Carrega somente os artigos estáticos do repositório.
+    final List<ArticleModel> artigos =
+        ArticleRepository.getGeneralTips();
 
     return Scaffold(
       backgroundColor: tema.scaffoldBackgroundColor,
@@ -27,54 +49,32 @@ class _TipsScreenState extends State<TipsScreen> {
           children: [
             _buildHeader(escuro),
 
-            // Lista de dicas rolável
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 20,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildCardDica(
-                      categoria: 'SUBSTRATO',
-                      tempoLeitura: '5 min de leitura',
-                      corBadge: verdeAcao,
-                      titulo:
-                          'O segredo está embaixo: substrato ideal para cada planta',
-                      subtitulo:
-                          'Mistura certa de terra, areia e perlita faz toda a diferença no crescimento.',
-                      imagemUrl: 'assets/img/plantinha1.jpg',
-                    ),
-                    const SizedBox(height: 16),
+              child: artigos.isEmpty
+                  ? _buildListaVazia(escuro)
+                  : ListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 20,
+                      ),
+                      itemCount: artigos.length,
+                      itemBuilder: (context, index) {
+                        final artigo = artigos[index];
 
-                    _buildCardDica(
-                      categoria: 'PODA',
-                      tempoLeitura: '8 min de leitura',
-                      corBadge: textoCardEscuro,
-                      titulo:
-                          'Poda consciente: quando e como cortar sem estressar a planta',
-                      subtitulo:
-                          'Tesoura limpa, corte certeiro. A planta agradece com folhas novas.',
-                      imagemUrl: 'assets/img/plantinha1.jpg',
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildCardDica(
+                            context: context,
+                            artigo: artigo,
+                            corBadge: index.isEven
+                                ? verdeAcao
+                                : textoCardEscuro,
+                            escuro: escuro,
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 16),
-
-                    _buildCardDica(
-                      categoria: 'ILUMINAÇÃO',
-                      tempoLeitura: '4 min de leitura',
-                      corBadge: verdeAcao,
-                      titulo:
-                          'Luz direta vs. indireta: como identificar o local perfeito em casa',
-                      subtitulo:
-                          'Entenda os sinais das folhas e posicione suas plantas no lugar certo.',
-                      imagemUrl: 'assets/img/plantinha1.jpg',
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -82,12 +82,16 @@ class _TipsScreenState extends State<TipsScreen> {
     );
   }
 
-  // ==================== CABEÇALHO ====================
+  // =========================================================
+  // CABEÇALHO
+  // =========================================================
 
   Widget _buildHeader(bool escuro) {
     return Container(
       width: double.infinity,
-      color: escuro ? const Color(0xFF102A2E) : verdeEscuro,
+      color: escuro
+          ? const Color(0xFF102A2E)
+          : verdeEscuro,
       padding: const EdgeInsets.only(
         top: 20,
         left: 20,
@@ -121,164 +125,258 @@ class _TipsScreenState extends State<TipsScreen> {
     );
   }
 
-  // ==================== CARDS DE DICAS ====================
+  // =========================================================
+  // CARD DE DICA
+  // =========================================================
 
   Widget _buildCardDica({
-    required String categoria,
-    required String tempoLeitura,
+    required BuildContext context,
+    required ArticleModel artigo,
     required Color corBadge,
-    required String titulo,
-    required String subtitulo,
-    required String imagemUrl,
+    required bool escuro,
   }) {
-    final escuro =
-        Theme.of(context).brightness == Brightness.dark;
+    final caminhoImagem =
+        artigo.imagem?.trim().isNotEmpty == true
+            ? artigo.imagem!.trim()
+            : 'assets/img/plantinha1.jpg';
 
-    return Container(
-      height: 190,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: escuro ? const Color(0xFF1B383C) : verdeEscuro,
+    final imagemOnline =
+        caminhoImagem.startsWith('https://') ||
+        caminhoImagem.startsWith('http://');
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: escuro
-            ? Border.all(
-                color: Colors.white.withValues(alpha: 0.07),
-              )
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: escuro ? 0.16 : 0.08),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            // Imagem de fundo.
-            // Como o caminho é local, utilizamos Image.asset.
-            Positioned.fill(
-              child: Image.asset(
-                imagemUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: escuro
-                        ? const Color(0xFF294448)
-                        : verdeEscuro,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.menu_book,
-                      color: fundoBege,
-                      size: 48,
-                    ),
-                  );
-                },
+
+        // Ao tocar no card, abre o artigo correspondente.
+        onTap: () => _abrirArtigo(context, artigo),
+
+        child: Container(
+          height: 190,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: escuro
+                ? const Color(0xFF1B383C)
+                : verdeEscuro,
+            borderRadius: BorderRadius.circular(16),
+            border: escuro
+                ? Border.all(
+                    color: Colors.white.withValues(alpha: 0.07),
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: escuro ? 0.16 : 0.08,
+                ),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
               ),
-            ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                // IMAGEM DE FUNDO.
+                Positioned.fill(
+                  child: imagemOnline
+                      ? Image.network(
+                          caminhoImagem,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _imagemPadrao(escuro);
+                          },
+                        )
+                      : Image.asset(
+                          caminhoImagem,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _imagemPadrao(escuro);
+                          },
+                        ),
+                ),
 
-            // Gradiente para facilitar a leitura.
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(
-                        alpha: escuro ? 0.25 : 0.15,
+                // GRADIENTE PARA FACILITAR A LEITURA.
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(
+                            alpha: escuro ? 0.25 : 0.15,
+                          ),
+                          (escuro
+                                  ? const Color(0xFF102A2E)
+                                  : verdeEscuro)
+                              .withValues(alpha: 0.92),
+                        ],
                       ),
-                      (escuro
-                              ? const Color(0xFF102A2E)
-                              : verdeEscuro)
-                          .withValues(alpha: 0.92),
+                    ),
+                  ),
+                ),
+
+                // CONTEÚDO DO CARD.
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Categoria e tempo estimado de leitura.
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: corBadge,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              artigo.categoria,
+                              style: const TextStyle(
+                                color: fundoBege,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+
+                            Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              width: 1,
+                              height: 10,
+                              color: fundoBege,
+                            ),
+
+                            // CÁLCULO AUTOMÁTICO DO TEMPO DE LEITURA.
+                            Text(
+                              artigo.tempoLeituraFormatado,
+                              style: const TextStyle(
+                                color: fundoBege,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // TÍTULO.
+                      Text(
+                        artigo.titulo,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          height: 1.25,
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      // RESUMO.
+                      Text(
+                        artigo.resumo,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          height: 1.3,
+                        ),
+                      ),
+
+                      const SizedBox(height: 5),
+
+                      // INDICADOR DE NAVEGAÇÃO.
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Ler mais',
+                            style: TextStyle(
+                              color: fundoBege,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            color: fundoBege,
+                            size: 13,
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Conteúdo do card.
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Categoria e tempo de leitura.
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: corBadge,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          categoria,
-                          style: const TextStyle(
-                            color: fundoBege,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        Container(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                          ),
-                          width: 1,
-                          height: 10,
-                          color: fundoBege,
-                        ),
-                        Text(
-                          tempoLeitura,
-                          style: const TextStyle(
-                            color: fundoBege,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+  // =========================================================
+  // IMAGEM PADRÃO
+  // =========================================================
 
-                  const SizedBox(height: 8),
+  Widget _imagemPadrao(bool escuro) {
+    return Container(
+      color: escuro
+          ? const Color(0xFF294448)
+          : verdeEscuro,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.menu_book,
+        color: fundoBege,
+        size: 48,
+      ),
+    );
+  }
 
-                  // Título da dica.
-                  Text(
-                    titulo,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      height: 1.25,
-                    ),
-                  ),
+  // =========================================================
+  // LISTA VAZIA
+  // =========================================================
 
-                  const SizedBox(height: 4),
-
-                  // Resumo da dica.
-                  Text(
-                    subtitulo,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
+  Widget _buildListaVazia(bool escuro) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.menu_book_outlined,
+              color: verdeAcao,
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Nenhuma dica disponível no momento.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: escuro ? fundoBege : verdeEscuro,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
