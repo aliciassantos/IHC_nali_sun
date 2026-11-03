@@ -11,6 +11,7 @@ import '../screens/calendar/calendar_screen.dart';
 import '../screens/tips/tips_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/plants/add_plants_screen.dart';
+import '../screens/plants/plant_details_screen.dart';
 
 class AppRoutes {
   // Nomes das rotas
@@ -23,6 +24,8 @@ class AppRoutes {
   static const String tips = '/tips';
   static const String profile = '/profile';
   static const String plant = '/add-plant';
+  static const String plantDetails = '/details-plant';
+
   // Mapa de rotas do aplicativo
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -34,7 +37,12 @@ class AppRoutes {
       calendar:(context) => const CalendarScreen(),
       tips:(context) => const TipsScreen(),
       profile:(context) => const ProfileScreen(),
-      plant:(context) => const AddPlantScreen()
+      plant:(context) => const AddPlantScreen(),
+     
+      plantDetails: (context) {
+        final plantId = ModalRoute.of(context)!.settings.arguments as String;
+        return PlantDetailsScreen(plantId: plantId);
+      },
     };
   }
 }

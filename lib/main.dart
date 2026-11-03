@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+
 import 'app/app.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';

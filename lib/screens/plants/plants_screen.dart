@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'add_plants_screen.dart';
 import 'package:nali_sun_app/database/plant_dao.dart';
+import '../../app/routes.dart';
 
 class MyGardenScreen extends StatefulWidget {
   const MyGardenScreen({super.key});
@@ -128,12 +129,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     return Container(
       width: double.infinity,
       color: escuro ? const Color(0xFF102A2E) : verdeEscuro,
-      padding: const EdgeInsets.only(
-        top: 20,
-        left: 20,
-        right: 20,
-        bottom: 16,
-      ),
+      padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -157,8 +153,8 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                   _carregando
                       ? 'Carregando plantas...'
                       : '${_plantas.length} '
-                          '${_plantas.length == 1 ? 'planta' : 'plantas'}'
-                          ' · um cantinho de natureza',
+                            '${_plantas.length == 1 ? 'planta' : 'plantas'}'
+                            ' · um cantinho de natureza',
                   style: const TextStyle(
                     color: fundoBege,
                     fontSize: 12,
@@ -182,11 +178,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
               child: const SizedBox(
                 width: 44,
                 height: 44,
-                child: Icon(
-                  Icons.add,
-                  color: fundoBege,
-                  size: 24,
-                ),
+                child: Icon(Icons.add, color: fundoBege, size: 24),
               ),
             ),
           ),
@@ -200,9 +192,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   Future<void> _abrirCadastroPlanta() async {
     final resultado = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (context) => const AddPlantScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const AddPlantScreen()),
     );
 
     if (!mounted) return;
@@ -212,6 +202,21 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
       await _carregarPlantas();
     }
   }
+
+ Future<void> _abrirDetalhesPlanta(String plantaId) async {
+  final resultado = await Navigator.pushNamed(
+    context,
+    AppRoutes.plantDetails,
+    arguments: plantaId,
+  );
+
+  if (!mounted) return;
+
+  // Atualiza a lista se a tela de detalhes retornou 'true' (ex: ao editar ou excluir a planta)
+  if (resultado == true) {
+    await _carregarPlantas();
+  }
+}
 
   // ==================== GRID DE PLANTAS ====================
 
@@ -248,10 +253,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
               Text(
                 _erro!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: texto,
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: texto, fontSize: 15),
               ),
 
               const SizedBox(height: 12),
@@ -270,10 +272,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     // Estado vazio.
     if (_plantas.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 48,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 48),
         child: Column(
           children: [
             Icon(
@@ -299,15 +298,10 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
             Text(
               'Toque no botão + para adicionar sua primeira planta.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textoSecundario,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: textoSecundario, fontSize: 14),
             ),
 
             const SizedBox(height: 20),
-
-            
           ],
         ),
       );
@@ -338,9 +332,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
         return _buildCardPlanta(
           id: id,
           nome: nome,
-          cientifico: especie.isEmpty
-              ? 'Espécie não informada'
-              : especie,
+          cientifico: especie.isEmpty ? 'Espécie não informada' : especie,
           status: 'Cuidados cadastrados',
           corCard: index.isEven ? verdeChartreuse : verdeBase,
           corBadge: fundoBege,
@@ -355,8 +347,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   }
 
   // ==================== CARD DA PLANTA ====================
-
-  Widget _buildCardPlanta({
+Widget _buildCardPlanta({
     required dynamic id,
     required String nome,
     required String cientifico,
@@ -370,180 +361,154 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     required Color textoSecundario,
   }) {
     // Cores adaptadas ao tema.
-    final corFundoCard = escuro
-        ? const Color(0xFF1B383C)
-        : corCard;
+    final corFundoCard = escuro ? const Color(0xFF1B383C) : corCard;
 
-    final corBadgeAtual = escuro
-        ? const Color(0xFF31564C)
-        : corBadge;
+    final corBadgeAtual = escuro ? const Color(0xFF31564C) : corBadge;
 
-    final corTextoBadge = escuro
-        ? const Color(0xFFE1F0D9)
-        : verdeEscuro;
+    final corTextoBadge = escuro ? const Color(0xFFE1F0D9) : verdeEscuro;
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: corFundoCard,
-        borderRadius: BorderRadius.circular(16),
-        border: escuro
-            ? Border.all(
-                color: Colors.white.withValues(alpha: 0.07),
-              )
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: escuro ? 0.12 : 0.08,
+    // 1. Envolva o Container retornado em um GestureDetector
+    return GestureDetector(
+      onTap: () => _abrirDetalhesPlanta(id.toString()),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: corFundoCard,
+          borderRadius: BorderRadius.circular(16),
+          border: escuro
+              ? Border.all(color: Colors.white.withValues(alpha: 0.07))
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: escuro ? 0.12 : 0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Imagem ou ícone provisório da planta.
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: _construirImagemPlanta(
-                imagemPath: imagemUrl,
-                escuro: escuro,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Nome popular e menu de opções.
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  nome,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: texto,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Imagem ou ícone provisório da planta.
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _construirImagemPlanta(
+                  imagemPath: imagemUrl,
+                  escuro: escuro,
                 ),
               ),
-
-              PopupMenuButton<String>(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 150,
-                ),
-                icon: Icon(
-                  Icons.more_vert,
-                  color: textoSecundario,
-                  size: 20,
-                ),
-                onSelected: (opcao) {
-                  _selecionarOpcao(
-                    opcao: opcao,
-                    id: id,
-                    nome: nome,
-                  );
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: 'detalhes',
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, size: 20),
-                        SizedBox(width: 8),
-                        Text('Ver detalhes'),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'editar',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit_outlined, size: 20),
-                        SizedBox(width: 8),
-                        Text('Editar planta'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 2),
-
-          // Espécie da planta.
-          Text(
-            cientifico,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: textoSecundario,
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-              fontWeight: FontWeight.w400,
             ),
-          ),
 
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-          // Indicador informativo.
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 4,
-            ),
-            decoration: BoxDecoration(
-              color: corBadgeAtual,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            // Nome popular e menu de opções.
+            Row(
               children: [
-                Icon(
-                  iconeBadge,
-                  color: corTextoBadge,
-                  size: 12,
-                ),
-
-                const SizedBox(width: 4),
-
-                Flexible(
+                Expanded(
                   child: Text(
-                    status,
+                    nome,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: corTextoBadge,
-                      fontSize: 10,
+                      color: texto,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 150),
+                  icon: Icon(Icons.more_vert, color: textoSecundario, size: 20),
+                  onSelected: (opcao) {
+                    _selecionarOpcao(opcao: opcao, id: id, nome: nome);
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'detalhes',
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 20),
+                          SizedBox(width: 8),
+                          Text('Ver detalhes'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'editar',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 20),
+                          SizedBox(width: 8),
+                          Text('Editar planta'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
-        ],
+
+            const SizedBox(height: 2),
+
+            // Espécie da planta.
+            Text(
+              cientifico,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: textoSecundario,
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Indicador informativo.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: corBadgeAtual,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(iconeBadge, color: corTextoBadge, size: 12),
+
+                  const SizedBox(width: 4),
+
+                  Flexible(
+                    child: Text(
+                      status,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: corTextoBadge,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
   // ==================== IMAGEM DA PLANTA ====================
 
   Widget _construirImagemPlanta({
     required String imagemPath,
     required bool escuro,
   }) {
-    final corFundo = escuro
-        ? const Color(0xFF294448)
-        : Colors.black12;
+    final corFundo = escuro ? const Color(0xFF294448) : Colors.black12;
 
     // Sem imagem cadastrada: mostra um ícone.
     if (imagemPath.isEmpty) {
@@ -559,8 +524,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     }
 
     // URLs HTTP/HTTPS: tenta carregar uma imagem da internet.
-    if (imagemPath.startsWith('https://') ||
-        imagemPath.startsWith('http://')) {
+    if (imagemPath.startsWith('https://') || imagemPath.startsWith('http://')) {
       return Image.network(
         imagemPath,
         width: double.infinity,
@@ -580,11 +544,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     return Container(
       width: double.infinity,
       color: corFundo,
-      child: Icon(
-        Icons.eco,
-        color: escuro ? verdeBase : verdeEscuro,
-        size: 40,
-      ),
+      child: Icon(Icons.eco, color: escuro ? verdeBase : verdeEscuro, size: 40),
     );
   }
 
@@ -595,26 +555,16 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     required dynamic id,
     required String nome,
   }) {
-    String mensagem;
+    String mensagem = '';
 
-    switch (opcao) {
-      case 'detalhes':
-        mensagem = 'A tela de detalhes de $nome ainda precisa ser implementada.';
-        break;
-
-      case 'editar':
-        mensagem = 'A edição de $nome ainda precisa ser implementada.';
-        break;
-
-      default:
-        return;
-    }
+    if (opcao == 'detalhes') {
+    _abrirDetalhesPlanta(id.toString());
+  } else if (opcao == 'editar') {
+    mensagem = 'A edição de $nome ainda precisa ser implementada.';
+  }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensagem),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(mensagem), behavior: SnackBarBehavior.floating),
     );
   }
 }
