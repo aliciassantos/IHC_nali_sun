@@ -92,6 +92,43 @@ class UserDAO {
       return null;
     }
 
+    
+
+    return UserModel.fromMap(response);
+  }
+  /// Atualiza o nome do usuário na tabela users.
+  static Future<UserModel> updateName({
+    required String userId,
+    required String newName,
+  }) async {
+    final nome = newName.trim();
+
+    if (nome.length < 2) {
+      throw Exception('O nome deve ter pelo menos 2 caracteres.');
+    }
+
+    final response = await _supabase
+        .from('users')
+        .update({'name': nome})
+        .eq('id', userId)
+        .select()
+        .single();
+
+    return UserModel.fromMap(response);
+  }
+
+  /// Atualiza o caminho da foto de perfil.
+  static Future<UserModel> updateAvatar({
+    required String userId,
+    required String? avatarPath,
+  }) async {
+    final response = await _supabase
+        .from('users')
+        .update({'avatar_path': avatarPath})
+        .eq('id', userId)
+        .select()
+        .single();
+
     return UserModel.fromMap(response);
   }
 }

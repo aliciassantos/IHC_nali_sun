@@ -1,7 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../database/plant_dao.dart';
 import '../../models/plant_model.dart';
@@ -10,10 +9,7 @@ class HomeScreen extends StatefulWidget {
   // Callback recebido do MainNavigationScreen.
   final ValueChanged<int>? onNavigateToTab;
 
-  const HomeScreen({
-    super.key,
-    this.onNavigateToTab,
-  });
+  const HomeScreen({super.key, this.onNavigateToTab});
 
   @override
   State<HomeScreen> createState() => HomeScreenState();
@@ -67,9 +63,7 @@ class HomeScreenState extends State<HomeScreen> {
       debugPrint('================================');
 
       return resposta.map((mapa) {
-        return PlantModel.fromMap(
-          Map<String, dynamic>.from(mapa),
-        );
+        return PlantModel.fromMap(Map<String, dynamic>.from(mapa));
       }).toList();
     } catch (e, stackTrace) {
       debugPrint('Erro ao carregar plantas da Home: $e');
@@ -112,23 +106,16 @@ class HomeScreenState extends State<HomeScreen> {
   DateTime _inicioDoDia(DateTime data) {
     final local = data.toLocal();
 
-    return DateTime(
-      local.year,
-      local.month,
-      local.day,
-    );
+    return DateTime(local.year, local.month, local.day);
   }
 
-  List<_PlantaComRega> _calcularRegas(
-    List<PlantModel> plantas,
-  ) {
+  List<_PlantaComRega> _calcularRegas(List<PlantModel> plantas) {
     final hoje = _inicioDoDia(DateTime.now());
 
     final regas = plantas.map((planta) {
       // Se não existe uma última rega registrada,
       // utiliza a data de cadastro como referência.
-      final ultimaRega =
-          planta.lastWateredAt ?? planta.createdAt;
+      final ultimaRega = planta.lastWateredAt ?? planta.createdAt;
 
       final dataBase = _inicioDoDia(ultimaRega);
 
@@ -136,12 +123,9 @@ class HomeScreenState extends State<HomeScreen> {
           ? planta.wateringFrequencyDays
           : 1;
 
-      final proximaRega = dataBase.add(
-        Duration(days: frequencia),
-      );
+      final proximaRega = dataBase.add(Duration(days: frequencia));
 
-      final diasRestantes =
-          proximaRega.difference(hoje).inDays;
+      final diasRestantes = proximaRega.difference(hoje).inDays;
 
       return _PlantaComRega(
         planta: planta,
@@ -151,9 +135,7 @@ class HomeScreenState extends State<HomeScreen> {
     }).toList();
 
     // Organiza da rega mais próxima para a mais distante.
-    regas.sort(
-      (a, b) => a.proximaRega.compareTo(b.proximaRega),
-    );
+    regas.sort((a, b) => a.proximaRega.compareTo(b.proximaRega));
 
     return regas;
   }
@@ -175,9 +157,7 @@ class HomeScreenState extends State<HomeScreen> {
     if (dias < 0) {
       final atraso = dias.abs();
 
-      return atraso == 1
-          ? 'Atrasada · 1 dia'
-          : 'Atrasada · $atraso dias';
+      return atraso == 1 ? 'Atrasada · 1 dia' : 'Atrasada · $atraso dias';
     }
 
     if (dias == 0) {
@@ -197,9 +177,7 @@ class HomeScreenState extends State<HomeScreen> {
     if (dias < 0) {
       final atraso = dias.abs();
 
-      return atraso == 1
-          ? 'Atrasada há 1 dia'
-          : 'Atrasada há $atraso dias';
+      return atraso == 1 ? 'Atrasada há 1 dia' : 'Atrasada há $atraso dias';
     }
 
     if (dias == 0) return 'Hoje';
@@ -211,9 +189,7 @@ class HomeScreenState extends State<HomeScreen> {
   String _nomesDasPlantas(List<_PlantaComRega> regas) {
     if (regas.isEmpty) return '';
 
-    return regas
-        .map((rega) => rega.planta.name)
-        .join(', ');
+    return regas.map((rega) => rega.planta.name).join(', ');
   }
 
   // =========================================================
@@ -237,6 +213,7 @@ class HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHeader(
               nomeUsuario: usuario?.name ?? 'Usuário',
+              fotoUsuario: usuario?.avatarPath,
               escuro: escuro,
             ),
 
@@ -249,9 +226,7 @@ class HomeScreenState extends State<HomeScreen> {
 
                   if (carregando) {
                     return const Center(
-                      child: CircularProgressIndicator(
-                        color: verdeAcao,
-                      ),
+                      child: CircularProgressIndicator(color: verdeAcao),
                     );
                   }
 
@@ -294,10 +269,7 @@ class HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           // PRÓXIMA REGA.
-                          _buildProximaRegaCard(
-                            escuro,
-                            regas,
-                          ),
+                          _buildProximaRegaCard(escuro, regas),
 
                           const SizedBox(height: 16),
 
@@ -332,9 +304,7 @@ class HomeScreenState extends State<HomeScreen> {
                           else
                             ...atrasadas.map(
                               (rega) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 10,
-                                ),
+                                padding: const EdgeInsets.only(bottom: 10),
                                 child: _buildAvisoCard(
                                   titulo: rega.planta.name,
                                   subtitulo:
@@ -376,9 +346,7 @@ class HomeScreenState extends State<HomeScreen> {
                           else
                             ...regarHoje.map(
                               (rega) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 10,
-                                ),
+                                padding: const EdgeInsets.only(bottom: 10),
                                 child: _buildAvisoCard(
                                   titulo: rega.planta.name,
                                   subtitulo:
@@ -412,17 +380,14 @@ class HomeScreenState extends State<HomeScreen> {
                           if (proximasRegas.isEmpty)
                             _buildEstadoVazio(
                               titulo: 'Nenhuma rega futura cadastrada',
-                              subtitulo:
-                                  'As próximas regas aparecerão aqui.',
+                              subtitulo: 'As próximas regas aparecerão aqui.',
                               icone: Icons.eco_outlined,
                               escuro: escuro,
                             )
                           else
                             ...proximasRegas.map(
                               (rega) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 10,
-                                ),
+                                padding: const EdgeInsets.only(bottom: 10),
                                 child: _buildAvisoCard(
                                   titulo: rega.planta.name,
                                   subtitulo:
@@ -434,9 +399,7 @@ class HomeScreenState extends State<HomeScreen> {
                                       : verdeBase,
                                   corBorda: verdeBase,
                                   icone: Icons.check_circle_outline,
-                                  corIcone: escuro
-                                      ? verdeBase
-                                      : verdeEscuro,
+                                  corIcone: escuro ? verdeBase : verdeEscuro,
                                   escuro: escuro,
                                 ),
                               ),
@@ -462,23 +425,23 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader({
     required String nomeUsuario,
+    required String? fotoUsuario,
     required bool escuro,
   }) {
-    final fundoHeader = escuro
-        ? const Color(0xFF102A2E)
-        : verdeEscuro;
+    final fundoHeader = escuro ? const Color(0xFF102A2E) : verdeEscuro;
 
     final textoHeader = escuro ? Colors.white : fundoBege;
+
+    final urlFoto = fotoUsuario != null && fotoUsuario.trim().isNotEmpty
+        ? Supabase.instance.client.storage
+              .from('avatars')
+              .getPublicUrl(fotoUsuario)
+        : null;
 
     return Container(
       width: double.infinity,
       color: fundoHeader,
-      padding: const EdgeInsets.only(
-        top: 20,
-        left: 20,
-        right: 20,
-        bottom: 16,
-      ),
+      padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -498,11 +461,7 @@ class HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(
-                      Icons.eco,
-                      color: verdeBase,
-                      size: 20,
-                    ),
+                    const Icon(Icons.eco, color: verdeBase, size: 20),
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -536,23 +495,33 @@ class HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(width: 10),
 
+          // FOTO DO PERFIL
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: escuro
-                  ? const Color(0xFF304B4E)
-                  : amareloCard,
+              color: escuro ? const Color(0xFF304B4E) : amareloCard,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: verdeBase,
-                width: 2,
-              ),
+              border: Border.all(color: verdeBase, width: 2),
             ),
-            child: Icon(
-              Icons.person,
-              color: escuro ? Colors.white : verdeEscuro,
-              size: 24,
+            child: ClipOval(
+              child: urlFoto != null
+                  ? Image.network(
+                      urlFoto,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.person,
+                          color: escuro ? Colors.white : verdeEscuro,
+                        );
+                      },
+                    )
+                  : Icon(
+                      Icons.person,
+                      color: escuro ? Colors.white : verdeEscuro,
+                    ),
             ),
           ),
         ],
@@ -564,21 +533,20 @@ class HomeScreenState extends State<HomeScreen> {
   // PRÓXIMA REGA DO JARDIM
   // =========================================================
 
-  Widget _buildProximaRegaCard(
-    bool escuro,
-    List<_PlantaComRega> regas,
-  ) {
+  Widget _buildProximaRegaCard(bool escuro, List<_PlantaComRega> regas) {
     final corTexto = escuro ? Colors.white : verdeEscuro;
 
     final proxima = regas.isNotEmpty ? regas.first : null;
 
     final mesmaData = proxima == null
         ? <_PlantaComRega>[]
-        : regas.where(
-            (rega) =>
-                _inicioDoDia(rega.proximaRega) ==
-                _inicioDoDia(proxima.proximaRega),
-          ).toList();
+        : regas
+              .where(
+                (rega) =>
+                    _inicioDoDia(rega.proximaRega) ==
+                    _inicioDoDia(proxima.proximaRega),
+              )
+              .toList();
 
     final nomes = _nomesDasPlantas(mesmaData);
 
@@ -590,22 +558,12 @@ class HomeScreenState extends State<HomeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: escuro
-              ? const [
-                  Color(0xFF28594B),
-                  Color(0xFF1B4039),
-                ]
-              : const [
-                  verdeAvisoCard,
-                  verdeBase,
-                ],
+              ? const [Color(0xFF28594B), Color(0xFF1B4039)]
+              : const [verdeAvisoCard, verdeBase],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -624,20 +582,14 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              Icon(
-                Icons.water_drop_outlined,
-                color: corTexto,
-                size: 22,
-              ),
+              Icon(Icons.water_drop_outlined, color: corTexto, size: 22),
             ],
           ),
 
           const SizedBox(height: 8),
 
           Text(
-            proxima == null
-                ? 'Jardim vazio'
-                : _textoDestaque(proxima),
+            proxima == null ? 'Jardim vazio' : _textoDestaque(proxima),
             style: TextStyle(
               color: corTexto,
               fontSize: proxima == null ? 25 : 30,
@@ -648,14 +600,9 @@ class HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
 
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 7,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: escuro
-                  ? const Color(0xFF426B58)
-                  : verdeChartreuse,
+              color: escuro ? const Color(0xFF426B58) : verdeChartreuse,
               borderRadius: BorderRadius.circular(24),
             ),
             child: Text(
@@ -686,67 +633,35 @@ class HomeScreenState extends State<HomeScreen> {
     required int quantidadeRegasHoje,
   }) {
     final gradientePlantas = escuro
-        ? const LinearGradient(
-            colors: [
-              Color(0xFF29483E),
-              Color(0xFF203C36),
-            ],
-          )
+        ? const LinearGradient(colors: [Color(0xFF29483E), Color(0xFF203C36)])
         : const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              verdeChartreuse,
-              verdeBase,
-            ],
+            colors: [verdeChartreuse, verdeBase],
           );
 
     final gradienteCalendario = escuro
-        ? const LinearGradient(
-            colors: [
-              Color(0xFF254A45),
-              Color(0xFF1C3936),
-            ],
-          )
+        ? const LinearGradient(colors: [Color(0xFF254A45), Color(0xFF1C3936)])
         : const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              verdeBase,
-              verdeAvisoCard,
-            ],
+            colors: [verdeBase, verdeAvisoCard],
           );
 
     final gradienteDicas = escuro
-        ? const LinearGradient(
-            colors: [
-              Color(0xFF49452D),
-              Color(0xFF353D2D),
-            ],
-          )
+        ? const LinearGradient(colors: [Color(0xFF49452D), Color(0xFF353D2D)])
         : const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              amareloCard,
-              verdeChartreuse,
-            ],
+            colors: [amareloCard, verdeChartreuse],
           );
 
     final gradientePerfil = escuro
-        ? const LinearGradient(
-            colors: [
-              Color(0xFF344649),
-              Color(0xFF263A3D),
-            ],
-          )
+        ? const LinearGradient(colors: [Color(0xFF344649), Color(0xFF263A3D)])
         : const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              textoNavUnselected,
-              fundoBege,
-            ],
+            colors: [textoNavUnselected, fundoBege],
           );
 
     return Column(
@@ -860,11 +775,7 @@ class HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                icone,
-                color: corTexto,
-                size: 22,
-              ),
+              Icon(icone, color: corTexto, size: 22),
 
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -888,9 +799,7 @@ class HomeScreenState extends State<HomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: escuro
-                          ? const Color(0xFFD4E1DC)
-                          : verdeEscuro,
+                      color: escuro ? const Color(0xFFD4E1DC) : verdeEscuro,
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
                     ),
@@ -912,9 +821,7 @@ class HomeScreenState extends State<HomeScreen> {
     required String? imagemPath,
     required bool escuro,
   }) {
-    final corFundo = escuro
-        ? const Color(0xFF294448)
-        : fundoBege;
+    final corFundo = escuro ? const Color(0xFF294448) : fundoBege;
 
     Widget imagemAlternativa() {
       return Container(
@@ -937,8 +844,7 @@ class HomeScreenState extends State<HomeScreen> {
     final url = imagemPath.trim();
 
     // As imagens salvas pelo cadastro são URLs do Supabase.
-    if (!url.startsWith('https://') &&
-        !url.startsWith('http://')) {
+    if (!url.startsWith('https://') && !url.startsWith('http://')) {
       return imagemAlternativa();
     }
 
@@ -959,10 +865,7 @@ class HomeScreenState extends State<HomeScreen> {
           child: const SizedBox(
             width: 18,
             height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: verdeAcao,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: verdeAcao),
           ),
         );
       },
@@ -1029,10 +932,7 @@ class HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: corFundo,
-        border: Border.all(
-          color: corBorda,
-          width: 1,
-        ),
+        border: Border.all(color: corBorda, width: 1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -1087,11 +987,7 @@ class HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
 
           // ÍCONE DE STATUS DA REGA.
-          Icon(
-            icone,
-            color: corIcone,
-            size: 22,
-          ),
+          Icon(icone, color: corIcone, size: 22),
         ],
       ),
     );
@@ -1111,18 +1007,12 @@ class HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: escuro
-            ? const Color(0xFF1B383C)
-            : fundoBege,
+        color: escuro ? const Color(0xFF1B383C) : fundoBege,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          Icon(
-            icone,
-            color: verdeAcao,
-            size: 28,
-          ),
+          Icon(icone, color: verdeAcao, size: 28),
 
           const SizedBox(width: 12),
 

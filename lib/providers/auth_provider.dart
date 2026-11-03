@@ -1,38 +1,43 @@
 // Estado da autenticação do usuário
 
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../database/user_dao.dart';
-
 
 SupabaseClient get supabase => Supabase.instance.client;
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+
   StreamSubscription<AuthState>? _authSubscription;
 
   UserModel? _currentUser;
   bool _isLoading = false;
   bool _sessionChecked = false;
-  bool _isRecoveringPassword = false; // Estado para redefinição
+  bool _isRecoveringPassword = false;
   String? _errorMessage;
 
+  // Getters
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
   bool get sessionChecked => _sessionChecked;
-  bool get isRecoveringPassword => _isRecoveringPassword; // Getter
+  bool get isRecoveringPassword => _isRecoveringPassword;
   String? get errorMessage => _errorMessage;
 
   AuthProvider() {
     _startAuthListen();
   }
 
+  // Escuta alterações na autenticação do Supabase
   void _startAuthListen() {
-    _authSubscription = supabase.auth.onAuthStateChange.listen((data) {
+    _authSubscription =
+        supabase.auth.onAuthStateChange.listen((data) {
       final event = data.event;
 
       if (event == AuthChangeEvent.passwordRecovery) {
@@ -48,6 +53,7 @@ class AuthProvider extends ChangeNotifier {
     super.dispose();
   }
 
+  // Restaura a sessão do usuário
   Future<void> restoreSession() async {
     try {
       final userId = supabase.auth.currentUser?.id;
@@ -61,7 +67,7 @@ class AuthProvider extends ChangeNotifier {
       } else {
         _currentUser = null;
       }
-    } catch (_) {
+    } catch (e) {
       _currentUser = null;
     } finally {
       _sessionChecked = true;
@@ -69,11 +75,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Login
   Future<bool> login(String email, String password) async {
     _setLoading(true);
 
     try {
-      final user = await _authService.login(email: email, password: password);
+      final user = await _authService.login(
+        email: email,
+        password: password,
+      );
 
       _currentUser = user;
       _errorMessage = null;
@@ -88,7 +98,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(String name, String email, String password) async {
+  // Cadastro
+  Future<bool> register(
+    String name,
+    String email,
+    String password,
+  ) async {
     _setLoading(true);
 
     try {
@@ -100,7 +115,7 @@ class AuthProvider extends ChangeNotifier {
 
       final authUser = supabase.auth.currentUser;
 
-      // Só define o usuário atual se houver uma sessão correspondente.
+      // Define o usuário atual somente se houver uma sessão correspondente.
       if (authUser != null && authUser.id == user.id) {
         _currentUser = user;
       } else {
@@ -119,13 +134,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Recuperação de senha
   Future<bool> resetPassword(String email) async {
     _setLoading(true);
 
     try {
       await _authService.resetPassword(
         email: email,
-        redirectTo: 'http://localhost:3000/#/reset-password',
+        redirectTo:
+            'http://localhost:3000/#/reset-password',
       );
 
       _errorMessage = null;
@@ -138,6 +155,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Logout
   Future<void> logout() async {
     try {
       await _authService.logout();
@@ -150,20 +168,82 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Limpa o estado de recuperação de senha
   void clearPasswordRecoveryFlag() {
     _isRecoveringPassword = false;
     notifyListeners();
   }
 
+  // Limpa mensagens de erro
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
+  // Atualiza o nome do usuário
+  Future<void> updateName(String newName) async {
+    final usuario = _currentUser;
+
+    if (usuario == null) {
+      throw Exception('Nenhum usuário está conectado.');
+    }
+
+    try {
+      _setLoading(true);
+
+      final usuarioAtualizado = await UserDAO.updateName(
+        userId: usuario.id,
+        newName: newName,
+      );
+
+      // Atualiza o usuário armazenado no Provider.
+      _currentUser = usuarioAtualizado;
+      _errorMessage = null;
+
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = _mensagemErro(e);
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Atualiza a foto do usuário
+  Future<void> updateAvatar(String? avatarPath) async {
+    final usuario = _currentUser;
+
+    if (usuario == null) {
+      throw Exception('Nenhum usuário está conectado.');
+    }
+
+    try {
+      _setLoading(true);
+
+      final usuarioAtualizado = await UserDAO.updateAvatar(
+        userId: usuario.id,
+        avatarPath: avatarPath,
+      );
+
+      // Atualiza o usuário armazenado no Provider.
+      _currentUser = usuarioAtualizado;
+      _errorMessage = null;
+
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = _mensagemErro(e);
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Converte erros em mensagens mais simples
   String _mensagemErro(Object erro) {
     return erro.toString().replaceFirst('Exception: ', '');
   }
 
+  // Controla o estado de carregamento
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
