@@ -2,12 +2,16 @@
 // Navegação principal do footer
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:nali_sun_app/providers/plant_provider.dart';
 
 import 'package:nali_sun_app/screens/home/home_screen.dart';
 import 'package:nali_sun_app/screens/plants/plants_screen.dart';
 import 'package:nali_sun_app/screens/calendar/calendar_screen.dart';
 import 'package:nali_sun_app/screens/tips/tips_screen.dart';
 import 'package:nali_sun_app/screens/profile/profile_screen.dart';
+
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -39,6 +43,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   ];
 
   // =========================================================
+  // INICIALIZAÇÃO
+  // =========================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Carrega as plantas quando a navegação principal é aberta.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      context.read<PlantProvider>().carregarPlantas();
+    });
+  }
+
+  // =========================================================
   // NAVEGAÇÃO ENTRE AS ABAS
   // =========================================================
 
@@ -49,8 +69,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       _indiceAtual = index;
     });
 
+    // Quando o usuário entra na aba Plantas,
+    // atualiza a lista e sincroniza as notificações.
+    if (index == 1) {
+      context.read<PlantProvider>().carregarPlantas();
+    }
+
     // Quando o usuário retorna à Home,
-    // atualiza os dados das plantas.
+    // atualiza os dados da tela.
     if (index == 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;

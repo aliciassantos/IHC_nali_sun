@@ -35,6 +35,11 @@ class HomeScreenState extends State<HomeScreen> {
   // =========================================================
 
   late Future<List<PlantModel>> _futurePlantas;
+  List<_PlantaComRega> _regasAtuais = [];
+
+  int get _quantidadeNotificacoes {
+    return _regasAtuais.where((rega) => rega.diasRestantes <= 1).length;
+  }
 
   @override
   void initState() {
@@ -62,9 +67,20 @@ class HomeScreenState extends State<HomeScreen> {
 
       debugPrint('================================');
 
-      return resposta.map((mapa) {
+      final plantas = resposta.map((mapa) {
         return PlantModel.fromMap(Map<String, dynamic>.from(mapa));
       }).toList();
+
+      // ADICIONAR AQUI: calcular as regas das plantas carregadas.
+      final regas = _calcularRegas(plantas);
+
+      if (mounted) {
+        setState(() {
+          _regasAtuais = regas;
+        });
+      }
+
+      return plantas;
     } catch (e, stackTrace) {
       debugPrint('Erro ao carregar plantas da Home: $e');
       debugPrintStack(stackTrace: stackTrace);
@@ -190,6 +206,222 @@ class HomeScreenState extends State<HomeScreen> {
     if (regas.isEmpty) return '';
 
     return regas.map((rega) => rega.planta.name).join(', ');
+  }
+
+  void _mostrarNotificacoes() {
+    final atrasadas = _regasAtuais
+        .where((rega) => rega.diasRestantes < 0)
+        .toList();
+
+    final paraHoje = _regasAtuais
+        .where((rega) => rega.diasRestantes == 0)
+        .toList();
+
+    final paraAmanha = _regasAtuais
+        .where((rega) => rega.diasRestantes == 1)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          decoration: const BoxDecoration(
+            color: fundoBege,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: verdeBase,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.notifications_active_outlined,
+                        color: verdeEscuro,
+                        size: 26,
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Notificações',
+                          style: TextStyle(
+                            color: verdeEscuro,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: verdeEscuro),
+                      ),
+                    ],
+                  ),
+
+                  const Text(
+                    'Confira os lembretes de rega das suas plantas.',
+                    style: TextStyle(color: textoCardEscuro, fontSize: 14),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  if (_regasAtuais.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 30),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.notifications_off_outlined,
+                              size: 45,
+                              color: verdeBase,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'Nenhum lembrete no momento.',
+                              style: TextStyle(
+                                color: verdeEscuro,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    _buildGrupoNotificacoes(
+                      'Regas atrasadas',
+                      atrasadas,
+                      Icons.warning_amber_rounded,
+                    ),
+
+                    _buildGrupoNotificacoes(
+                      'Regas para hoje',
+                      paraHoje,
+                      Icons.water_drop_outlined,
+                    ),
+
+                    _buildGrupoNotificacoes(
+                      'Regas para amanhã',
+                      paraAmanha,
+                      Icons.calendar_today_outlined,
+                    ),
+                  ],
+
+                  const SizedBox(height: 15),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onNavigateToTab?.call(1);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: verdeEscuro,
+                        foregroundColor: fundoBege,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('Ver minhas plantas'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGrupoNotificacoes(
+    String titulo,
+    List<_PlantaComRega> regas,
+    IconData icone,
+  ) {
+    if (regas.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, top: 12),
+          child: Text(
+            titulo,
+            style: const TextStyle(
+              color: verdeEscuro,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+
+        ...regas.map(
+          (rega) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(icone, color: verdeAcao, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rega.planta.name,
+                        style: const TextStyle(
+                          color: verdeEscuro,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _textoPrazo(rega),
+                        style: const TextStyle(
+                          color: textoCardEscuro,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // =========================================================
@@ -479,20 +711,58 @@ class HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: verdeBase,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.notifications_none,
-              color: verdeEscuro,
-              size: 22,
+          const SizedBox(width: 10),
+
+          // SINO DE NOTIFICAÇÕES
+          GestureDetector(
+            onTap: _mostrarNotificacoes,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: escuro ? const Color(0xFF304B4E) : amareloCard,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: verdeBase, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.notifications_none,
+                    color: fundoBege,
+                    size: 24,
+                  ),
+                ),
+
+                if (_quantidadeNotificacoes > 0)
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: Container(
+                      width: 19,
+                      height: 19,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: fundoBege, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _quantidadeNotificacoes > 9
+                              ? '9+'
+                              : '$_quantidadeNotificacoes',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-
           const SizedBox(width: 10),
 
           // FOTO DO PERFIL

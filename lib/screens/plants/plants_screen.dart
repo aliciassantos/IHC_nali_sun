@@ -1,9 +1,10 @@
 // Aba 2: Meu Jardim e Detalhes
-
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import 'add_plants_screen.dart';
-import 'package:nali_sun_app/database/plant_dao.dart';
 import '../../app/routes.dart';
+import '../../providers/plant_provider.dart';
 
 class MyGardenScreen extends StatefulWidget {
   const MyGardenScreen({super.key});
@@ -22,52 +23,17 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   static const Color amareloCard = Color(0xFFD6D578);
   static const Color verdeChartreuse = Color(0xFFA7BF73);
 
-  // ==================== ESTADO DA TELA ====================
-
-  List<Map<String, dynamic>> _plantas = [];
-
-  bool _carregando = true;
-
-  String? _erro;
-
   // ==================== CICLO DE VIDA ====================
 
   @override
   void initState() {
     super.initState();
-    _carregarPlantas();
-  }
 
-  // ==================== CARREGAR PLANTAS ====================
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
 
-  Future<void> _carregarPlantas() async {
-    if (!mounted) return;
-
-    setState(() {
-      _carregando = true;
-      _erro = null;
+      context.read<PlantProvider>().carregarPlantas();
     });
-
-    try {
-      final plantas = await PlantDAO.getPlantsByUser();
-
-      if (!mounted) return;
-
-      setState(() {
-        _plantas = plantas;
-        _carregando = false;
-      });
-    } catch (e, stackTrace) {
-      debugPrint('Erro ao carregar plantas: $e');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) return;
-
-      setState(() {
-        _erro = 'Não foi possível carregar suas plantas.';
-        _carregando = false;
-      });
-    }
   }
 
   // ==================== CONSTRUIR TELA ====================
@@ -78,23 +44,36 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     final escuro = tema.brightness == Brightness.dark;
 
     final fundo = tema.scaffoldBackgroundColor;
-
     final texto = escuro ? Colors.white : verdeEscuro;
 
     final textoSecundario = escuro
         ? Colors.white70
         : verdeEscuro.withValues(alpha: 0.75);
 
+    final provider = context.watch<PlantProvider>();
+
+    final plantas = provider.plantas;
+    final carregando = provider.isLoading;
+    final erro = provider.errorMessage;
+
     return Scaffold(
       backgroundColor: fundo,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(escuro),
+            _buildHeader(
+              escuro,
+              plantas.length,
+              carregando,
+            ),
 
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _carregarPlantas,
+                onRefresh: () {
+                  return context
+                      .read<PlantProvider>()
+                      .carregarPlantas();
+                },
                 color: verdeAcao,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
@@ -111,6 +90,9 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                         escuro: escuro,
                         texto: texto,
                         textoSecundario: textoSecundario,
+                        plantas: plantas,
+                        carregando: carregando,
+                        erro: erro,
                       ),
                     ],
                   ),
@@ -125,11 +107,20 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
 
   // ==================== CABEÇALHO ====================
 
-  Widget _buildHeader(bool escuro) {
+  Widget _buildHeader(
+    bool escuro,
+    int quantidadePlantas,
+    bool carregando,
+  ) {
     return Container(
       width: double.infinity,
       color: escuro ? const Color(0xFF102A2E) : verdeEscuro,
-      padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 16),
+      padding: const EdgeInsets.only(
+        top: 20,
+        left: 20,
+        right: 20,
+        bottom: 16,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -146,15 +137,13 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-
                 const SizedBox(height: 2),
-
                 Text(
-                  _carregando
+                  carregando
                       ? 'Carregando plantas...'
-                      : '${_plantas.length} '
-                            '${_plantas.length == 1 ? 'planta' : 'plantas'}'
-                            ' · um cantinho de natureza',
+                      : '$quantidadePlantas '
+                          '${quantidadePlantas == 1 ? 'planta' : 'plantas'}'
+                          ' · um cantinho de natureza',
                   style: const TextStyle(
                     color: fundoBege,
                     fontSize: 12,
@@ -167,7 +156,6 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
 
           const SizedBox(width: 12),
 
-          // Botão para adicionar uma planta.
           Material(
             color: verdeAcao,
             shape: const CircleBorder(),
@@ -178,7 +166,11 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
               child: const SizedBox(
                 width: 44,
                 height: 44,
-                child: Icon(Icons.add, color: fundoBege, size: 24),
+                child: Icon(
+                  Icons.add,
+                  color: fundoBege,
+                  size: 24,
+                ),
               ),
             ),
           ),
@@ -190,33 +182,29 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   // ==================== ABRIR CADASTRO ====================
 
   Future<void> _abrirCadastroPlanta() async {
-    final resultado = await Navigator.push<bool>(
+    await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (context) => const AddPlantScreen()),
+      MaterialPageRoute(
+        builder: (context) => const AddPlantScreen(),
+      ),
+    );
+  }
+
+  // ==================== ABRIR DETALHES ====================
+
+  Future<void> _abrirDetalhesPlanta(String plantaId) async {
+    final resultado = await Navigator.pushNamed(
+      context,
+      AppRoutes.plantDetails,
+      arguments: plantaId,
     );
 
     if (!mounted) return;
 
-    // Atualiza a lista somente quando o cadastro retorna true.
     if (resultado == true) {
-      await _carregarPlantas();
+      await context.read<PlantProvider>().carregarPlantas();
     }
   }
-
- Future<void> _abrirDetalhesPlanta(String plantaId) async {
-  final resultado = await Navigator.pushNamed(
-    context,
-    AppRoutes.plantDetails,
-    arguments: plantaId,
-  );
-
-  if (!mounted) return;
-
-  // Atualiza a lista se a tela de detalhes retornou 'true' (ex: ao editar ou excluir a planta)
-  if (resultado == true) {
-    await _carregarPlantas();
-  }
-}
 
   // ==================== GRID DE PLANTAS ====================
 
@@ -224,9 +212,11 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
     required bool escuro,
     required Color texto,
     required Color textoSecundario,
+    required List<Map<String, dynamic>> plantas,
+    required bool carregando,
+    required String? erro,
   }) {
-    // Estado de carregamento.
-    if (_carregando) {
+    if (carregando) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(40),
@@ -235,8 +225,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
       );
     }
 
-    // Estado de erro.
-    if (_erro != null) {
+    if (erro != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -247,19 +236,20 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                 size: 52,
                 color: escuro ? Colors.orangeAccent : Colors.redAccent,
               ),
-
               const SizedBox(height: 12),
-
               Text(
-                _erro!,
+                erro,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: texto, fontSize: 15),
+                style: TextStyle(
+                  color: texto,
+                  fontSize: 15,
+                ),
               ),
-
               const SizedBox(height: 12),
-
               ElevatedButton.icon(
-                onPressed: _carregarPlantas,
+                onPressed: () {
+                  context.read<PlantProvider>().carregarPlantas();
+                },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Tentar novamente'),
               ),
@@ -269,10 +259,12 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
       );
     }
 
-    // Estado vazio.
-    if (_plantas.isEmpty) {
+    if (plantas.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 48),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 48,
+        ),
         child: Column(
           children: [
             Icon(
@@ -280,9 +272,7 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
               size: 64,
               color: escuro ? verdeBase : verdeEscuro,
             ),
-
             const SizedBox(height: 12),
-
             Text(
               'Seu jardim está vazio',
               textAlign: TextAlign.center,
@@ -292,26 +282,25 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 8),
-
             Text(
               'Toque no botão + para adicionar sua primeira planta.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: textoSecundario, fontSize: 14),
+              style: TextStyle(
+                color: textoSecundario,
+                fontSize: 14,
+              ),
             ),
-
             const SizedBox(height: 20),
           ],
         ),
       );
     }
 
-    // Lista dinâmica das plantas cadastradas.
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _plantas.length,
+      itemCount: plantas.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 14,
@@ -319,20 +308,19 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
         childAspectRatio: 0.72,
       ),
       itemBuilder: (context, index) {
-        final planta = _plantas[index];
+        final planta = plantas[index];
 
         final nome = planta['name']?.toString() ?? 'Planta';
-
         final especie = planta['species']?.toString() ?? '';
-
         final id = planta['id'];
-
         final imagemPath = planta['image_path']?.toString() ?? '';
 
         return _buildCardPlanta(
           id: id,
           nome: nome,
-          cientifico: especie.isEmpty ? 'Espécie não informada' : especie,
+          cientifico: especie.isEmpty
+              ? 'Espécie não informada'
+              : especie,
           status: 'Cuidados cadastrados',
           corCard: index.isEven ? verdeChartreuse : verdeBase,
           corBadge: fundoBege,
@@ -347,7 +335,8 @@ class _MyGardenScreenState extends State<MyGardenScreen> {
   }
 
   // ==================== CARD DA PLANTA ====================
-Widget _buildCardPlanta({
+
+  Widget _buildCardPlanta({
     required dynamic id,
     required String nome,
     required String cientifico,
@@ -360,14 +349,18 @@ Widget _buildCardPlanta({
     required Color texto,
     required Color textoSecundario,
   }) {
-    // Cores adaptadas ao tema.
-    final corFundoCard = escuro ? const Color(0xFF1B383C) : corCard;
+    final corFundoCard = escuro
+        ? const Color(0xFF1B383C)
+        : corCard;
 
-    final corBadgeAtual = escuro ? const Color(0xFF31564C) : corBadge;
+    final corBadgeAtual = escuro
+        ? const Color(0xFF31564C)
+        : corBadge;
 
-    final corTextoBadge = escuro ? const Color(0xFFE1F0D9) : verdeEscuro;
+    final corTextoBadge = escuro
+        ? const Color(0xFFE1F0D9)
+        : verdeEscuro;
 
-    // 1. Envolva o Container retornado em um GestureDetector
     return GestureDetector(
       onTap: () => _abrirDetalhesPlanta(id.toString()),
       child: Container(
@@ -376,11 +369,15 @@ Widget _buildCardPlanta({
           color: corFundoCard,
           borderRadius: BorderRadius.circular(16),
           border: escuro
-              ? Border.all(color: Colors.white.withValues(alpha: 0.07))
+              ? Border.all(
+                  color: Colors.white.withValues(alpha: 0.07),
+                )
               : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: escuro ? 0.12 : 0.08),
+              color: Colors.black.withValues(
+                alpha: escuro ? 0.12 : 0.08,
+              ),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -389,7 +386,6 @@ Widget _buildCardPlanta({
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Imagem ou ícone provisório da planta.
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -402,7 +398,6 @@ Widget _buildCardPlanta({
 
             const SizedBox(height: 8),
 
-            // Nome popular e menu de opções.
             Row(
               children: [
                 Expanded(
@@ -420,10 +415,20 @@ Widget _buildCardPlanta({
 
                 PopupMenuButton<String>(
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 150),
-                  icon: Icon(Icons.more_vert, color: textoSecundario, size: 20),
+                  constraints: const BoxConstraints(
+                    minWidth: 150,
+                  ),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: textoSecundario,
+                    size: 20,
+                  ),
                   onSelected: (opcao) {
-                    _selecionarOpcao(opcao: opcao, id: id, nome: nome);
+                    _selecionarOpcao(
+                      opcao: opcao,
+                      id: id,
+                      nome: nome,
+                    );
                   },
                   itemBuilder: (context) => const [
                     PopupMenuItem(
@@ -453,7 +458,6 @@ Widget _buildCardPlanta({
 
             const SizedBox(height: 2),
 
-            // Espécie da planta.
             Text(
               cientifico,
               maxLines: 1,
@@ -468,9 +472,11 @@ Widget _buildCardPlanta({
 
             const SizedBox(height: 8),
 
-            // Indicador informativo.
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
               decoration: BoxDecoration(
                 color: corBadgeAtual,
                 borderRadius: BorderRadius.circular(24),
@@ -478,10 +484,12 @@ Widget _buildCardPlanta({
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(iconeBadge, color: corTextoBadge, size: 12),
-
+                  Icon(
+                    iconeBadge,
+                    color: corTextoBadge,
+                    size: 12,
+                  ),
                   const SizedBox(width: 4),
-
                   Flexible(
                     child: Text(
                       status,
@@ -502,29 +510,23 @@ Widget _buildCardPlanta({
       ),
     );
   }
+
   // ==================== IMAGEM DA PLANTA ====================
 
   Widget _construirImagemPlanta({
     required String imagemPath,
     required bool escuro,
   }) {
-    final corFundo = escuro ? const Color(0xFF294448) : Colors.black12;
+    final corFundo = escuro
+        ? const Color(0xFF294448)
+        : Colors.black12;
 
-    // Sem imagem cadastrada: mostra um ícone.
     if (imagemPath.isEmpty) {
-      return Container(
-        width: double.infinity,
-        color: corFundo,
-        child: Icon(
-          Icons.eco,
-          color: escuro ? verdeBase : verdeEscuro,
-          size: 40,
-        ),
-      );
+      return _imagemAlternativa(corFundo, escuro);
     }
 
-    // URLs HTTP/HTTPS: tenta carregar uma imagem da internet.
-    if (imagemPath.startsWith('https://') || imagemPath.startsWith('http://')) {
+    if (imagemPath.startsWith('https://') ||
+        imagemPath.startsWith('http://')) {
       return Image.network(
         imagemPath,
         width: double.infinity,
@@ -535,8 +537,6 @@ Widget _buildCardPlanta({
       );
     }
 
-    // Caminhos locais ou assets não são interpretados
-    // automaticamente, pois dependem de como a imagem foi salva.
     return _imagemAlternativa(corFundo, escuro);
   }
 
@@ -544,7 +544,11 @@ Widget _buildCardPlanta({
     return Container(
       width: double.infinity,
       color: corFundo,
-      child: Icon(Icons.eco, color: escuro ? verdeBase : verdeEscuro, size: 40),
+      child: Icon(
+        Icons.eco,
+        color: escuro ? verdeBase : verdeEscuro,
+        size: 40,
+      ),
     );
   }
 
@@ -555,16 +559,17 @@ Widget _buildCardPlanta({
     required dynamic id,
     required String nome,
   }) {
-    String mensagem = '';
-
     if (opcao == 'detalhes') {
-    _abrirDetalhesPlanta(id.toString());
-  } else if (opcao == 'editar') {
-    mensagem = 'A edição de $nome ainda precisa ser implementada.';
-  }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensagem), behavior: SnackBarBehavior.floating),
-    );
+      _abrirDetalhesPlanta(id.toString());
+    } else if (opcao == 'editar') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'A edição de $nome ainda precisa ser implementada.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }

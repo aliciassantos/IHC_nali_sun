@@ -1,15 +1,15 @@
 // Definição de rotas nomeadas
+
 import 'package:flutter/material.dart';
 
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/reset_password.dart';
-// import '../screens/home/home_screen.dart';
-import '../screens/plants/plants_screen.dart';
 import '../screens/main_navigation_screen.dart';
 import '../screens/calendar/calendar_screen.dart';
 import '../screens/tips/tips_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/plants/plants_screen.dart';
 import '../screens/plants/add_plants_screen.dart';
 import '../screens/plants/plant_details_screen.dart';
 
@@ -30,18 +30,35 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes {
     return {
       login: (context) => const LoginScreen(),
+
       register: (context) => const RegisterScreen(),
-      resetPassword:(context) => const ResetPasswordScreen(),
-      home:(context) => const MainNavigationScreen(),
-      garden:(context) => const MyGardenScreen(),
-      calendar:(context) => const CalendarScreen(),
-      tips:(context) => const TipsScreen(),
-      profile:(context) => const ProfileScreen(),
-      plant:(context) => const AddPlantScreen(),
-     
+
+      resetPassword: (context) => const ResetPasswordScreen(),
+
+      home: (context) => const MainNavigationScreen(),
+
+      garden: (context) => const MyGardenScreen(),
+
+      calendar: (context) => const CalendarScreen(),
+
+      tips: (context) => const TipsScreen(),
+
+      profile: (context) => const ProfileScreen(),
+
+      plant: (context) => const AddPlantScreen(),
+
       plantDetails: (context) {
-        final plantId = ModalRoute.of(context)!.settings.arguments as String;
-        return PlantDetailsScreen(plantId: plantId);
+        final argumentos = ModalRoute.of(context)?.settings.arguments;
+
+        if (argumentos is! String) {
+          throw ArgumentError(
+            'O ID da planta deve ser informado como String.',
+          );
+        }
+
+        return PlantDetailsScreen(
+          plantId: argumentos,
+        );
       },
     };
   }

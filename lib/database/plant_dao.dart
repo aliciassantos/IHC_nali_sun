@@ -20,25 +20,31 @@ class PlantDAO {
     return user.id;
   }
 
+  // ============================================================
+  // UPLOAD DE FOTO
+  // ============================================================
+
   static Future<String?> uploadFotoSupabase(Uint8List bytes) async {
     try {
-      // Cria um nome único para o arquivo usando o timestamp
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}.jpg';
+
       final path = 'plants/$fileName';
 
-      // Upload dos bytes
       await _supabase.storage
           .from('plant-photos')
           .uploadBinary(
             path,
             bytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+            ),
           );
 
-      // Pega a URL pública acessível de qualquer dispositivo
       final publicUrl = _supabase.storage
           .from('plant-photos')
           .getPublicUrl(path);
+
       return publicUrl;
     } catch (e) {
       debugPrint('Erro no upload da foto: $e');
@@ -46,7 +52,10 @@ class PlantDAO {
     }
   }
 
-  /// Cadastra uma planta para o usuário autenticado.
+  // ============================================================
+  // CADASTRO DE PLANTAS
+  // ============================================================
+
   static Future<Map<String, dynamic>> insertPlant({
     required String name,
     required String species,
@@ -62,7 +71,8 @@ class PlantDAO {
       'name': name.trim(),
       'species': species.trim(),
       'watering_frequency_days': wateringFrequencyDays,
-      'last_watered_at': lastWateredAt?.toUtc().toIso8601String(),
+      'last_watered_at':
+          lastWateredAt?.toUtc().toIso8601String(),
       'luminosity': luminosity,
       'image_path': imagePath,
     };
@@ -84,23 +94,26 @@ class PlantDAO {
     }
   }
 
-  /// Lista somente as plantas associadas ao usuário autenticado.
+  // ============================================================
+  // LISTAGEM DE PLANTAS
+  // ============================================================
+
   static Future<List<Map<String, dynamic>>> getPlantsByUser() async {
     final userId = _getUserId();
 
     try {
-      debugPrint('========== MEU JARDIM ==========');
-      debugPrint('Usuário autenticado: true');
-      debugPrint('UUID: $userId');
-
       final response = await _supabase
           .from(_table)
           .select()
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
-      final plantas = List<Map<String, dynamic>>.from(response);
+      final plantas =
+          List<Map<String, dynamic>>.from(response);
 
+      debugPrint('========== MEU JARDIM ==========');
+      debugPrint('Usuário autenticado: true');
+      debugPrint('UUID: $userId');
       debugPrint('Plantas encontradas: ${plantas.length}');
       debugPrint('================================');
 
@@ -112,8 +125,13 @@ class PlantDAO {
     }
   }
 
-  /// Busca uma planta pelo ID, respeitando o proprietário.
-  static Future<Map<String, dynamic>?> getPlantById(int plantId) async {
+  // ============================================================
+  // BUSCA DE UMA PLANTA
+  // ============================================================
+
+  static Future<Map<String, dynamic>?> getPlantById(
+    int plantId,
+  ) async {
     final userId = _getUserId();
 
     final response = await _supabase
@@ -126,7 +144,10 @@ class PlantDAO {
     return response;
   }
 
-  /// Atualiza uma planta pertencente ao usuário autenticado.
+  // ============================================================
+  // ATUALIZAÇÃO DE PLANTAS
+  // ============================================================
+
   static Future<Map<String, dynamic>> updatePlant({
     required int plantId,
     required String name,
@@ -138,14 +159,24 @@ class PlantDAO {
   }) async {
     final userId = _getUserId();
 
+    // Atualiza os campos editáveis.
     final plantData = <String, dynamic>{
       'name': name.trim(),
       'species': species.trim(),
       'watering_frequency_days': wateringFrequencyDays,
       'luminosity': luminosity,
-      'last_watered_at': lastWateredAt?.toUtc().toIso8601String(),
-      'image_path': imagePath,
     };
+
+    // Só altera a última rega quando uma data for informada.
+    if (lastWateredAt != null) {
+      plantData['last_watered_at'] =
+          lastWateredAt.toUtc().toIso8601String();
+    }
+
+    // Só altera a foto quando um novo caminho for informado.
+    if (imagePath != null) {
+      plantData['image_path'] = imagePath;
+    }
 
     final response = await _supabase
         .from(_table)
@@ -158,7 +189,10 @@ class PlantDAO {
     return response;
   }
 
-  /// Exclui uma planta pertencente ao usuário autenticado.
+  // ============================================================
+  // EXCLUSÃO DE PLANTAS
+  // ============================================================
+
   static Future<void> deletePlant(int plantId) async {
     final userId = _getUserId();
 
