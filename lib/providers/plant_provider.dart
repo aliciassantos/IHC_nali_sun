@@ -1,6 +1,7 @@
 // Estado das plantas, filtros e lógica de rega
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/plant_dao.dart';
 import '../database/care_log_dao.dart';
@@ -17,10 +18,37 @@ class PlantProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   // ============================================================
+  // CONTROLE DAS NOTIFICAÇÕES
+  // ============================================================
+
+  // Verifica se os lembretes de rega estão ativados.
+  Future<bool> _lembretesEstaoAtivos() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Por padrão, os lembretes ficam ativados.
+    return prefs.getBool('nalisun_lembretes_rega') ?? true;
+  }
+
+  // Sincroniza as notificações respeitando a preferência.
+  Future<void> _sincronizarNotificacoes() async {
+    final ativos = await _lembretesEstaoAtivos();
+
+    if (ativos) {
+      // Atualiza os lembretes individuais das plantas.
+      await NotificationService.sincronizarPlantas(_plantas);
+
+      // Agenda o lembrete geral diário.
+      await NotificationService.agendarLembreteGeral();
+    } else {
+      // Cancela todas as notificações agendadas.
+      await NotificationService.cancelarTodas();
+    }
+  }
+
+  // ============================================================
   // CARREGAMENTO DAS PLANTAS
   // ============================================================
 
-  // Carrega as plantas e sincroniza suas notificações.
   Future<void> carregarPlantas() async {
     try {
       await _carregarPlantasInterno();
@@ -30,21 +58,17 @@ class PlantProvider extends ChangeNotifier {
     }
   }
 
-  // Método interno para carregar as plantas.
-  // Permite que outras operações identifiquem falhas no carregamento.
   Future<void> _carregarPlantasInterno() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      // Busca as plantas do usuário autenticado.
       _plantas = await PlantDAO.getPlantsByUser();
 
-      // Atualiza os lembretes individuais das plantas.
-      await NotificationService.sincronizarPlantas(_plantas);
-
-      // Agenda também o lembrete geral diário.
-      await NotificationService.agendarLembreteGeral();
+      // Sincroniza as notificações de acordo com a preferência.
+      await _sincronizarNotificacoes();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -73,6 +97,7 @@ class PlantProvider extends ChangeNotifier {
         imagePath: imagePath,
       );
 
+      // Recarrega as plantas e sincroniza os lembretes.
       await _carregarPlantasInterno();
     } catch (e) {
       _errorMessage = 'Erro ao cadastrar planta: $e';
@@ -105,6 +130,7 @@ class PlantProvider extends ChangeNotifier {
         imagePath: imagePath,
       );
 
+      // Recarrega as plantas e atualiza os lembretes.
       await _carregarPlantasInterno();
     } catch (e) {
       _errorMessage = 'Erro ao atualizar planta: $e';
@@ -121,11 +147,14 @@ class PlantProvider extends ChangeNotifier {
     try {
       await PlantDAO.deletePlant(plantId);
 
-      // Cancela os lembretes associados à planta excluída.
-      await NotificationService.cancelarNotificacoesPlanta(plantId);
+      // Cancela os lembretes da planta excluída.
+      await NotificationService.cancelarNotificacoesPlanta(
+        plantId,
+      );
 
       _plantas.removeWhere(
-        (planta) => int.tryParse(planta['id'].toString()) == plantId,
+        (planta) =>
+            int.tryParse(planta['id'].toString()) == plantId,
       );
 
       _errorMessage = null;
@@ -143,10 +172,13 @@ class PlantProvider extends ChangeNotifier {
 
   Future<void> registrarRega(int plantId) async {
     try {
-      // Registra a rega no histórico e atualiza last_watered_at.
-      await CareLogDAO.registrarRega(plantId: plantId);
+      // Registra a rega no histórico.
+      await CareLogDAO.registrarRega(
+        plantId: plantId,
+      );
 
-      // Recalcula os próximos lembretes com base na nova data.
+      // Recarrega as plantas e recalcula os lembretes.
+      // A sincronização respeita a preferência do usuário.
       await _carregarPlantasInterno();
     } catch (e) {
       _errorMessage = 'Erro ao registrar rega: $e';
@@ -162,7 +194,8 @@ class PlantProvider extends ChangeNotifier {
   Map<String, dynamic>? buscarPlanta(int plantId) {
     try {
       return _plantas.firstWhere(
-        (planta) => int.tryParse(planta['id'].toString()) == plantId,
+        (planta) =>
+            int.tryParse(planta['id'].toString()) == plantId,
       );
     } catch (_) {
       return null;
@@ -173,9 +206,6 @@ class PlantProvider extends ChangeNotifier {
   // LIMPEZA DO ESTADO
   // ============================================================
 
-  // Limpa os dados carregados na memória.
-  // O cancelamento das notificações da conta será coordenado
-  // pelo fluxo de logout/autenticação.
   void limparPlantas() {
     _plantas = [];
     _errorMessage = null;

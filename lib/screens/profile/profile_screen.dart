@@ -1,89 +1,152 @@
 // profile_screen.dart
 // profile_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../app/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../database/plant_dao.dart';
+import '../../services/notification_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Paleta original do Nali-Sun
+  // Paleta original do Nali-Sun.
   static const Color fundoBege = Color(0xFFFBE4AE);
   static const Color verdeEscuro = Color(0xFF0B3740);
   static const Color verdeBase = Color(0xFF81B380);
   static const Color verdeAvisoCard = Color(0xFF5AA68C);
   static const Color cardOpcoesFundo = Color(0xFFDACB8A);
+
   bool _aparenciaExpandida = false;
   bool _sobreEstufaExpandida = false;
   bool _notificacoesExpandida = false;
+
   bool _lembretesRega = true;
-  bool _dicasJardinagem = true;
-  bool _avisosCuidado = true;
   bool _carregandoNotificacoes = true;
+  bool _atualizandoNotificacoes = false;
+
   @override
   void initState() {
     super.initState();
     _carregarNotificacoes();
   }
 
-  // ==================== CARREGAR NOTIFICAÇÕES ====================
+  // ============================================================
+  // CARREGAR PREFERÊNCIA DE NOTIFICAÇÕES
+  // ============================================================
+
   Future<void> _carregarNotificacoes() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      final ativo = prefs.getBool('nalisun_lembretes_rega') ?? true;
+
       if (!mounted) return;
+
       setState(() {
-        _lembretesRega = prefs.getBool('nalisun_lembretes_rega') ?? true;
-        _dicasJardinagem = prefs.getBool('nalisun_dicas_ativas') ?? true;
-        _avisosCuidado = prefs.getBool('nalisun_avisos_cuidado') ?? true;
+        _lembretesRega = ativo;
         _carregandoNotificacoes = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Erro ao carregar preferência de notificações: $e');
+
       if (!mounted) return;
+
       setState(() {
         _carregandoNotificacoes = false;
       });
     }
   }
 
-  // ==================== SALVAR NOTIFICAÇÕES ====================
+  // ============================================================
+  // ATIVAR OU DESATIVAR LEMBRETES DE REGA
+  // ============================================================
+
   Future<void> _salvarLembretesRega(bool valor) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('nalisun_lembretes_rega', valor);
-    if (!mounted) return;
+    if (_atualizandoNotificacoes) return;
+
+    final estadoAnterior = _lembretesRega;
+
     setState(() {
+      _atualizandoNotificacoes = true;
       _lembretesRega = valor;
     });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Salva a preferência do usuário.
+      await prefs.setBool('nalisun_lembretes_rega', valor);
+
+      if (valor) {
+        // Busca as plantas cadastradas pelo usuário.
+        final plantas = await PlantDAO.getPlantsByUser();
+
+        // Sincroniza os lembretes individuais.
+        await NotificationService.sincronizarPlantas(plantas);
+
+        // Agenda o lembrete geral diário.
+        await NotificationService.agendarLembreteGeral();
+
+        if (!mounted) return;
+
+        _mostrarMensagem('Lembretes de rega ativados.');
+      } else {
+        // Cancela todas as notificações de rega.
+        await NotificationService.cancelarTodas();
+
+        if (!mounted) return;
+
+        _mostrarMensagem('Lembretes de rega desativados.');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao atualizar notificações: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      // Tenta restaurar a preferência anterior.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('nalisun_lembretes_rega', estadoAnterior);
+      } catch (erroPreferencia) {
+        debugPrint('Erro ao restaurar preferência: $erroPreferencia');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _lembretesRega = estadoAnterior;
+      });
+
+      _mostrarMensagem(
+        'Não foi possível atualizar os lembretes. Tente novamente.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _atualizandoNotificacoes = false;
+        });
+      }
+    }
   }
 
-  Future<void> _salvarDicas(bool valor) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('nalisun_dicas_ativas', valor);
-    if (!mounted) return;
-    setState(() {
-      _dicasJardinagem = valor;
-    });
-  }
-
-  Future<void> _salvarAvisos(bool valor) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('nalisun_avisos_cuidado', valor);
-    if (!mounted) return;
-    setState(() {
-      _avisosCuidado = valor;
-    });
-  }
+  // ============================================================
+  // MENSAGENS
+  // ============================================================
 
   void _mostrarMensagem(String mensagem) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensagem),
@@ -93,13 +156,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== TELA PRINCIPAL ====================
+  // ============================================================
+  // TELA PRINCIPAL
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     final usuario = context.watch<AuthProvider>().currentUser;
     final tema = context.watch<ThemeProvider>();
     final cores = Theme.of(context).colorScheme;
     final escuro = tema.isDarkMode;
+
     return Scaffold(
       backgroundColor: escuro ? cores.surface : fundoBege,
       body: SafeArea(
@@ -148,7 +215,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== EDIÇÃO DA CONTA ====================
+  // ============================================================
+  // EDIÇÃO DA CONTA
+  // ============================================================
 
   Future<void> _abrirEdicaoConta() async {
     final usuario = context.read<AuthProvider>().currentUser;
@@ -159,7 +228,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    // Aguarda o BottomSheet retornar a opção escolhida.
     final acao = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -168,7 +236,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       builder: (sheetContext) {
         final escuro = Theme.of(sheetContext).brightness == Brightness.dark;
-
         final corTexto = escuro ? Colors.white : verdeEscuro;
 
         return SafeArea(
@@ -185,9 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-
                 const SizedBox(height: 18),
-
                 Text(
                   'Editar conta',
                   style: TextStyle(
@@ -196,23 +261,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
                 ListTile(
                   leading: const Icon(Icons.edit_outlined),
                   title: const Text('Alterar nome'),
-                  onTap: () {
-                    Navigator.pop(sheetContext, 'nome');
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'nome'),
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.photo_camera_outlined),
                   title: const Text('Alterar foto de perfil'),
-                  onTap: () {
-                    Navigator.pop(sheetContext, 'foto');
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'foto'),
                 ),
               ],
             ),
@@ -221,15 +279,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
-    // O BottomSheet já terminou de fechar.
     if (!mounted || acao == null) return;
 
-    // Só agora abre a próxima operação.
     switch (acao) {
       case 'nome':
         await _editarNome();
         break;
-
       case 'foto':
         await _alterarFoto();
         break;
@@ -268,15 +323,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, novoNome);
-              },
+              onPressed: () => Navigator.pop(dialogContext, novoNome),
               child: const Text('Salvar'),
             ),
           ],
@@ -299,7 +350,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _mostrarMensagem('Nome atualizado com sucesso.');
     } catch (e) {
       if (!mounted) return;
-
       _mostrarMensagem('Não foi possível atualizar o nome: $e');
     }
   }
@@ -309,7 +359,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final usuario = authProvider.currentUser;
     final cliente = Supabase.instance.client;
 
-    // A foto só pode ser alterada por uma conta autenticada.
     if (usuario == null || cliente.auth.currentUser?.id != usuario.id) {
       _mostrarMensagem('Faça login para adicionar uma foto de perfil.');
       return;
@@ -326,6 +375,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (imagem == null || !mounted) return;
 
       final bytes = await imagem.readAsBytes();
+
       if (bytes.isEmpty) {
         _mostrarMensagem('Não foi possível ler a imagem selecionada.');
         return;
@@ -334,6 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final extensaoOriginal = imagem.name.contains('.')
           ? imagem.name.split('.').last.toLowerCase()
           : 'jpg';
+
       final extensao = ['jpg', 'jpeg', 'png', 'webp'].contains(extensaoOriginal)
           ? extensaoOriginal
           : 'jpg';
@@ -344,7 +395,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _ => 'image/jpeg',
       };
 
-      // O caminho exclusivo evita reutilização de uma foto antiga em cache.
       final caminho =
           '${usuario.id}/${DateTime.now().millisecondsSinceEpoch}.$extensao';
 
@@ -359,6 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await authProvider.updateAvatar(caminho);
 
       if (!mounted) return;
+
       _mostrarMensagem('Foto de perfil atualizada com sucesso.');
     } on StorageException catch (e) {
       if (!mounted) return;
@@ -369,7 +420,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ==================== HEADER ====================
+  // ============================================================
+  // CABEÇALHO
+  // ============================================================
+
   Widget _buildHeader({required bool escuro}) {
     return Container(
       width: double.infinity,
@@ -401,7 +455,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== CARD DO USUÁRIO ====================
+  // ============================================================
+  // CARD DO USUÁRIO
+  // ============================================================
+
   Widget _buildCardUsuario({
     required String nome,
     required DateTime? dataCadastro,
@@ -418,6 +475,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? 'Bem-vindo ao Nali-Sun!'
         : 'Cultivando desde '
               '${_nomeMes(dataCadastro.month)} de ${dataCadastro.year}';
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -471,7 +529,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -527,10 +584,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'novembro',
       'dezembro',
     ];
+
     return meses[mes - 1];
   }
 
-  // ==================== OPÇÕES DO PERFIL ====================
+  // ============================================================
+  // OPÇÕES DO PERFIL
+  // ============================================================
+
   Widget _buildContainerOpcoes({
     required String nome,
     required String email,
@@ -547,7 +608,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
-          // CONTA
           _buildItemOpcao(
             icone: Icons.person_outline,
             titulo: 'Conta',
@@ -556,7 +616,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             escuro: escuro,
             onTap: _abrirEdicaoConta,
           ),
-          // NOTIFICAÇÕES
+
+          // NOTIFICAÇÕES: somente lembretes de rega.
           _buildItemExpansivel(
             icone: Icons.notifications_none,
             titulo: 'Notificações',
@@ -579,11 +640,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   )
                 : _buildConteudoNotificacoes(escuro: escuro),
           ),
-          // APARÊNCIA
+
           _buildItemAparencia(tema: tema, escuro: escuro),
-          // SOBRE O APLICATIVO
+
           _buildItemSobreEstufa(escuro: escuro),
-          // SAIR DA CONTA
+
           _buildItemOpcao(
             icone: Icons.logout,
             titulo: 'Sair da conta',
@@ -598,7 +659,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== ITEM EXPANSÍVEL ====================
+  // ============================================================
+  // ITEM EXPANSÍVEL
+  // ============================================================
+
   Widget _buildItemExpansivel({
     required IconData icone,
     required String titulo,
@@ -610,6 +674,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final cores = Theme.of(context).colorScheme;
     final corTexto = escuro ? cores.onSurface : verdeEscuro;
+
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -663,50 +728,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== CONTEÚDO DAS NOTIFICAÇÕES ====================
+  // ============================================================
+  // CONTEÚDO DAS NOTIFICAÇÕES
+  // ============================================================
+
   Widget _buildConteudoNotificacoes({required bool escuro}) {
     final corTexto = escuro ? Colors.white : verdeEscuro;
+
     return Column(
       children: [
         _buildInterruptor(
           icone: Icons.water_drop_outlined,
           titulo: 'Lembretes de rega',
-          subtitulo: 'Avisos para lembrar de regar as plantas.',
+          subtitulo: 'Avisos para lembrar de regar suas plantas.',
           valor: _lembretesRega,
           corTexto: corTexto,
           onChanged: _salvarLembretesRega,
         ),
-        _buildInterruptor(
-          icone: Icons.spa_outlined,
-          titulo: 'Dicas de jardinagem',
-          subtitulo: 'Preferência para dicas e recomendações.',
-          valor: _dicasJardinagem,
-          corTexto: corTexto,
-          onChanged: _salvarDicas,
-        ),
-        _buildInterruptor(
-          icone: Icons.notifications_active_outlined,
-          titulo: 'Avisos sobre cuidados',
-          subtitulo: 'Avisos relacionados às plantas.',
-          valor: _avisosCuidado,
-          corTexto: corTexto,
-          onChanged: _salvarAvisos,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Essas opções salvam suas preferências. '
-          'O envio de notificações reais ainda precisa ser implementado.',
-          style: TextStyle(
-            color: corTexto.withValues(alpha: 0.75),
-            fontSize: 11,
-            height: 1.4,
+        if (_atualizandoNotificacoes)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: LinearProgressIndicator(),
           ),
-        ),
       ],
     );
   }
 
-  // ==================== INTERRUPTORES ====================
+  // ============================================================
+  // INTERRUPTOR
+  // ============================================================
+
   Widget _buildInterruptor({
     required IconData icone,
     required String titulo,
@@ -732,11 +783,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       value: valor,
       activeThumbColor: verdeAvisoCard,
-      onChanged: onChanged,
+      onChanged: _atualizandoNotificacoes ? null : onChanged,
     );
   }
 
-  // ==================== ITEM NORMAL DA LISTA ====================
+  // ============================================================
+  // ITEM NORMAL DA LISTA
+  // ============================================================
+
   Widget _buildItemOpcao({
     required IconData icone,
     required String titulo,
@@ -748,6 +802,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final cores = Theme.of(context).colorScheme;
     final corTexto = corEspecial ?? (escuro ? cores.onSurface : verdeEscuro);
+
     return Container(
       decoration: mostrarDivisor
           ? BoxDecoration(
@@ -783,12 +838,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ============================================================
+  // VISUALIZAÇÃO DA FOTO
+  // ============================================================
+
   void _mostrarFotoAmpliada(String? fotoUrl) {
     if (fotoUrl == null || fotoUrl.isEmpty) return;
 
     showDialog(
       context: context,
-      barrierDismissible: true, // Fecha ao clicar fora da foto
+      barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.75),
       builder: (dialogContext) {
         return Dialog(
@@ -829,13 +888,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== APARÊNCIA EXPANSÍVEL ====================
+  // ============================================================
+  // APARÊNCIA
+  // ============================================================
+
   Widget _buildItemAparencia({
     required ThemeProvider tema,
     required bool escuro,
   }) {
     final cores = Theme.of(context).colorScheme;
     final corTexto = escuro ? cores.onSurface : verdeEscuro;
+
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -914,7 +977,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== OPÇÃO DE TEMA ====================
   Widget _buildOpcaoTema({
     required IconData icone,
     required String titulo,
@@ -924,6 +986,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final corTexto = escuro ? Colors.white : verdeEscuro;
     final corIcone = escuro ? fundoBege : verdeEscuro;
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -955,10 +1018,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== SOBRE MINHA ESTUFA ====================
+  // ============================================================
+  // SOBRE MINHA ESTUFA
+  // ============================================================
+
   Widget _buildItemSobreEstufa({required bool escuro}) {
     final cores = Theme.of(context).colorScheme;
     final corTexto = escuro ? cores.onSurface : verdeEscuro;
+
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -1047,7 +1114,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== INFORMAÇÕES ====================
+  // ============================================================
+  // INFORMAÇÕES
+  // ============================================================
+
   Widget _linhaInformacao(String titulo, String valor, {required bool escuro}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1079,7 +1149,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==================== LOGOUT ====================
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   Future<void> _confirmarLogout() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -1103,10 +1176,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
+
     if (confirmar != true || !mounted) return;
+
     try {
       await context.read<AuthProvider>().logout();
+
       if (!mounted) return;
+
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.login,
@@ -1114,6 +1191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Não foi possível sair da conta. Tente novamente.'),
