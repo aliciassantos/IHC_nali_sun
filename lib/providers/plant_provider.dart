@@ -148,13 +148,10 @@ class PlantProvider extends ChangeNotifier {
       await PlantDAO.deletePlant(plantId);
 
       // Cancela os lembretes da planta excluída.
-      await NotificationService.cancelarNotificacoesPlanta(
-        plantId,
-      );
+      await NotificationService.cancelarNotificacoesPlanta(plantId);
 
       _plantas.removeWhere(
-        (planta) =>
-            int.tryParse(planta['id'].toString()) == plantId,
+        (planta) => int.tryParse(planta['id'].toString()) == plantId,
       );
 
       _errorMessage = null;
@@ -170,15 +167,13 @@ class PlantProvider extends ChangeNotifier {
   // REGISTRO DE REGA
   // ============================================================
 
-  Future<void> registrarRega(int plantId) async {
+  Future<void> registrarRega(int plantId, {DateTime? scheduledFor}) async {
     try {
-      // Registra a rega no histórico.
       await CareLogDAO.registrarRega(
         plantId: plantId,
+        scheduledFor: scheduledFor ?? DateTime.now(),
       );
 
-      // Recarrega as plantas e recalcula os lembretes.
-      // A sincronização respeita a preferência do usuário.
       await _carregarPlantasInterno();
     } catch (e) {
       _errorMessage = 'Erro ao registrar rega: $e';
@@ -194,8 +189,7 @@ class PlantProvider extends ChangeNotifier {
   Map<String, dynamic>? buscarPlanta(int plantId) {
     try {
       return _plantas.firstWhere(
-        (planta) =>
-            int.tryParse(planta['id'].toString()) == plantId,
+        (planta) => int.tryParse(planta['id'].toString()) == plantId,
       );
     } catch (_) {
       return null;

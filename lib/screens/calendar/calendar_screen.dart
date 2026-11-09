@@ -149,9 +149,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       // Sem plantas, não precisamos consultar o histórico.
       final registros = ids.isEmpty
           ? <Map<String, dynamic>>[]
-          : await CareLogDAO.getCareLogsByUser(
-              plantIds: ids,
-            );
+          : await CareLogDAO.getCareLogsByUser(plantIds: ids);
 
       if (!mounted) return;
 
@@ -182,10 +180,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return _registros.where((registro) {
       final idRegistro = _lerId(registro['plant_id']);
 
-      final tipo = registro['care_type']
-          ?.toString()
-          .trim()
-          .toLowerCase();
+      final tipo = registro['care_type']?.toString().trim().toLowerCase();
 
       return idRegistro == plantId && tipo == 'watering';
     }).toList();
@@ -204,8 +199,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     for (final registro in regas) {
       final data = _lerData(registro['performed_at']);
 
-      if (data != null &&
-          (ultima == null || data.isAfter(ultima))) {
+      if (data != null && (ultima == null || data.isAfter(ultima))) {
         ultima = data;
       }
     }
@@ -259,10 +253,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// Exemplo:
   /// Cadastro em 01/11 + frequência de 7 dias = primeira previsão
   /// em 08/11, desde que não exista histórico de rega.
-  bool _plantaPrecisaRegarEm(
-    Map<String, dynamic> planta,
-    DateTime data,
-  ) {
+  bool _plantaPrecisaRegarEm(Map<String, dynamic> planta, DateTime data) {
     final referencia = _dataReferencia(planta);
 
     // Sem data de cadastro nem histórico, não é possível calcular.
@@ -280,33 +271,95 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     final diferenca = diaConsultado.difference(diaBase).inDays;
 
-    return diferenca > 0 &&
-        diferenca % _frequencia(planta) == 0;
+    return diferenca > 0 && diferenca % _frequencia(planta) == 0;
   }
 
   /// Verifica se existe uma rega registrada no dia selecionado.
-  bool _regadaEm(
-    Map<String, dynamic> planta,
-    DateTime data,
-  ) {
+  bool _regadaEm(Map<String, dynamic> planta, DateTime data) {
     final id = _lerId(planta['id']);
     final dia = _somenteData(data);
 
     return _regasDaPlanta(id).any((registro) {
       final realizada = _lerData(registro['performed_at']);
 
-      return realizada != null &&
-          _somenteData(realizada) == dia;
+      return realizada != null && _somenteData(realizada) == dia;
     });
+  }
+
+  /// Retorna a primeira data de rega prevista após a última referência.
+  DateTime? _proximaRegaPrevista(Map<String, dynamic> planta) {
+    final referencia = _dataReferencia(planta);
+
+    if (referencia == null) return null;
+
+    return _somenteData(referencia).add(Duration(days: _frequencia(planta)));
+  }
+
+  /// Verifica se uma rega foi realizada para aquela data prevista.
+  Map<String, dynamic>? _registroDaDataPrevista(
+    Map<String, dynamic> planta,
+    DateTime data,
+  ) {
+    final id = _lerId(planta['id']);
+    final dia = _somenteData(data);
+
+    for (final registro in _regasDaPlanta(id)) {
+      final prevista = _lerData(registro['scheduled_for']);
+
+      if (prevista != null && _somenteData(prevista) == dia) {
+        return registro;
+      }
+    }
+
+    return null;
+  }
+
+  /// Verifica se a rega prevista foi concluída depois do dia programado.
+  bool _regadaComAtrasoEm(Map<String, dynamic> planta, DateTime data) {
+    final registro = _registroDaDataPrevista(planta, data);
+
+    if (registro == null) return false;
+
+    final prevista = _lerData(registro['scheduled_for']);
+    final realizada = _lerData(registro['performed_at']);
+
+    if (prevista == null || realizada == null) return false;
+
+    return _somenteData(realizada).isAfter(_somenteData(prevista));
   }
 
   /// Uma planta aparece na lista quando:
   /// - possui rega prevista para o dia; ou
   /// - possui uma rega registrada naquele dia.
   List<Map<String, dynamic>> _tarefasDoDia(DateTime data) {
+    final diaConsultado = _somenteData(data);
+    final hoje = _somenteData(DateTime.now());
+
     return _plantas.where((planta) {
-      return _plantaPrecisaRegarEm(planta, data) ||
-          _regadaEm(planta, data);
+      // Mostra a tarefa na data em que foi prevista.
+      if (_plantaPrecisaRegarEm(planta, diaConsultado)) {
+        return true;
+      }
+
+      // Mostra a tarefa na data em que foi efetivamente realizada.
+      if (_regadaEm(planta, diaConsultado)) {
+        return true;
+      }
+
+      // Também mantém visível a data original de uma rega
+      // que foi concluída posteriormente.
+      if (_regadaComAtrasoEm(planta, diaConsultado)) {
+        return true;
+      }
+
+      // Se ainda não foi realizada, aparece como atrasada hoje.
+      if (diaConsultado == hoje) {
+        final prevista = _proximaRegaPrevista(planta);
+
+        return prevista != null && _somenteData(prevista).isBefore(hoje);
+      }
+
+      return false;
     }).toList();
   }
 
@@ -319,25 +372,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // REGISTRAR REGA
   // ============================================================
 
-  Future<void> _marcarComoRegada(
-    Map<String, dynamic> planta,
-  ) async {
+  Future<void> _marcarComoRegada(Map<String, dynamic> planta) async {
     if (_registrandoRega) return;
 
     final hoje = _somenteData(DateTime.now());
     final diaEscolhido = _somenteData(_diaSelecionado);
 
-    // O DAO atual registra a data da execução.
-    // Portanto, não permitimos registrar uma rega futura ou
-    // retroativa por meio de uma data selecionada no calendário.
     if (diaEscolhido != hoje) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Para registrar a rega, selecione a data de hoje.',
-          ),
-        ),
-      );
+      _mostrarMensagem('Para registrar a rega, selecione a data de hoje.');
       return;
     }
 
@@ -349,9 +391,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     if (_regadaEm(planta, hoje)) {
-      _mostrarMensagem(
-        'Esta planta já possui uma rega registrada hoje.',
-      );
+      _mostrarMensagem('Esta planta já possui uma rega registrada hoje.');
+      return;
+    }
+
+    final prevista = _proximaRegaPrevista(planta);
+
+    if (prevista == null) {
+      _mostrarMensagem('Não foi possível calcular a data prevista da rega.');
+      return;
+    }
+
+    // Se estiver atrasada, preserva a data original.
+    // Caso contrário, registra a previsão de hoje.
+    final dataPrevista = _somenteData(prevista).isBefore(hoje)
+        ? _somenteData(prevista)
+        : hoje;
+
+    if (_registroDaDataPrevista(planta, dataPrevista) != null) {
+      _mostrarMensagem('Esta rega já foi registrada.');
       return;
     }
 
@@ -360,11 +418,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
 
     try {
-      await CareLogDAO.registrarRega(
-        plantId: id,
-      );
+      await CareLogDAO.registrarRega(plantId: id, scheduledFor: dataPrevista);
 
-      // Recarrega o histórico para recalcular as próximas datas.
       await _carregarDados();
 
       if (!mounted) return;
@@ -378,9 +433,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
       if (!mounted) return;
 
-      _mostrarMensagem(
-        'Não foi possível registrar a rega. Tente novamente.',
-      );
+      _mostrarMensagem('Não foi possível registrar a rega. Tente novamente.');
     } finally {
       if (mounted) {
         setState(() {
@@ -394,10 +447,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensagem),
-        backgroundColor: verdeEscuro,
-      ),
+      SnackBar(content: Text(mensagem), backgroundColor: verdeEscuro),
     );
   }
 
@@ -407,10 +457,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   void _mudarMes(int quantidade) {
     setState(() {
-      _mesExibido = DateTime(
-        _mesExibido.year,
-        _mesExibido.month + quantidade,
-      );
+      _mesExibido = DateTime(_mesExibido.year, _mesExibido.month + quantidade);
 
       final ultimoDia = DateTime(
         _mesExibido.year,
@@ -470,19 +517,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       if (_carregando)
                         const Padding(
                           padding: EdgeInsets.all(32),
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          child: Center(child: CircularProgressIndicator()),
                         )
                       else if (_erro != null)
                         _buildErro(escuro)
                       else ...[
                         _buildCardCalendario(escuro),
                         const SizedBox(height: 20),
-                        _buildSecaoTarefasDoDia(
-                          escuro,
-                          texto,
-                        ),
+                        _buildSecaoTarefasDoDia(escuro, texto),
                       ],
                     ],
                   ),
@@ -512,9 +554,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         Text(
           _erro!,
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: escuro ? Colors.white : verdeEscuro,
-          ),
+          style: TextStyle(color: escuro ? Colors.white : verdeEscuro),
         ),
         TextButton(
           onPressed: _carregarDados,
@@ -529,23 +569,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // ============================================================
 
   Widget _buildHeader(bool escuro) {
-    final corFundo = escuro
-        ? const Color(0xFF102A2E)
-        : verdeEscuro;
+    final corFundo = escuro ? const Color(0xFF102A2E) : verdeEscuro;
 
-    final corTexto = escuro
-        ? Colors.white
-        : fundoBege;
+    final corTexto = escuro ? Colors.white : fundoBege;
 
     return Container(
       width: double.infinity,
       color: corFundo,
-      padding: const EdgeInsets.only(
-        top: 20,
-        left: 20,
-        right: 20,
-        bottom: 16,
-      ),
+      padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -560,10 +591,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const SizedBox(height: 2),
           Text(
             'Um pouco de atenção, todos os dias.',
-            style: TextStyle(
-              color: corTexto,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: corTexto, fontSize: 12),
           ),
         ],
       ),
@@ -577,47 +605,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget _buildSeletorMes(bool escuro) {
     final corTexto = escuro ? Colors.white : verdeEscuro;
 
-    final diasNoMes = DateTime(
-      _mesExibido.year,
-      _mesExibido.month + 1,
-      0,
-    ).day;
+    final diasNoMes = DateTime(_mesExibido.year, _mesExibido.month + 1, 0).day;
 
-    final primeiroDia = DateTime(
-      _mesExibido.year,
-      _mesExibido.month,
-      1,
-    );
+    final primeiroDia = DateTime(_mesExibido.year, _mesExibido.month, 1);
 
-    final textoInicio =
-        _diasSemanaCompletos[primeiroDia.weekday - 1];
+    final textoInicio = _diasSemanaCompletos[primeiroDia.weekday - 1];
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: escuro
-              ? const [
-                  Color(0xFF29483F),
-                  Color(0xFF203A36),
-                ]
-              : const [
-                  fundoBege,
-                  amareloCard,
-                ],
+              ? const [Color(0xFF29483F), Color(0xFF203A36)]
+              : const [fundoBege, amareloCard],
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Row(
@@ -626,10 +632,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            icon: Icon(
-              Icons.chevron_left,
-              color: corTexto,
-            ),
+            icon: Icon(Icons.chevron_left, color: corTexto),
             onPressed: () => _mudarMes(-1),
           ),
           Flexible(
@@ -659,10 +662,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            icon: Icon(
-              Icons.chevron_right,
-              color: corTexto,
-            ),
+            icon: Icon(Icons.chevron_right, color: corTexto),
             onPressed: () => _mudarMes(1),
           ),
         ],
@@ -675,42 +675,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // ============================================================
 
   Widget _buildCardCalendario(bool escuro) {
-    final corCartao = escuro
-        ? const Color(0xFF1B383C)
-        : verdeBase;
+    final corCartao = escuro ? const Color(0xFF1B383C) : verdeBase;
 
-    final corCelula = escuro
-        ? const Color(0xFF294448)
-        : fundoBege;
+    final corCelula = escuro ? const Color(0xFF294448) : fundoBege;
 
     final corTexto = escuro ? Colors.white : verdeEscuro;
 
-    final corEvento = escuro
-        ? const Color(0xFFA7D8A5)
-        : verdeEscuro;
+    final corEvento = escuro ? const Color(0xFFA7D8A5) : verdeEscuro;
 
-    final corSelecionado = escuro
-        ? const Color(0xFF81B380)
-        : verdeAcao;
+    final corSelecionado = escuro ? const Color(0xFF81B380) : verdeAcao;
 
-    final corTextoSelecionado = escuro
-        ? const Color(0xFF102A2E)
-        : fundoBege;
+    final corTextoSelecionado = escuro ? const Color(0xFF102A2E) : fundoBege;
 
-    final diasNoMes = DateTime(
-      _mesExibido.year,
-      _mesExibido.month + 1,
-      0,
-    ).day;
+    final diasNoMes = DateTime(_mesExibido.year, _mesExibido.month + 1, 0).day;
 
-    final deslocamento = DateTime(
-      _mesExibido.year,
-      _mesExibido.month,
-      1,
-    ).weekday - 1;
+    final deslocamento =
+        DateTime(_mesExibido.year, _mesExibido.month, 1).weekday - 1;
 
-    final totalCelulas =
-        ((deslocamento + diasNoMes + 6) ~/ 7) * 7;
+    final totalCelulas = ((deslocamento + diasNoMes + 6) ~/ 7) * 7;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -718,11 +700,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         color: corCartao,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 3),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -747,8 +725,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: totalCelulas,
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
               crossAxisSpacing: 4,
               mainAxisSpacing: 4,
@@ -768,11 +745,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
               );
 
               final selecionado =
-                  _somenteData(data) ==
-                  _somenteData(_diaSelecionado);
+                  _somenteData(data) == _somenteData(_diaSelecionado);
 
-              final quantidadeEventos =
-                  _quantidadeIndicadores(data);
+              final quantidadeEventos = _quantidadeIndicadores(data);
 
               return GestureDetector(
                 onTap: () {
@@ -782,15 +757,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: selecionado
-                        ? corSelecionado
-                        : corCelula,
+                    color: selecionado ? corSelecionado : corCelula,
                     borderRadius: BorderRadius.circular(10),
                     border: selecionado
                         ? Border.all(
-                            color: escuro
-                                ? verdeBase
-                                : verdeEscuro,
+                            color: escuro ? verdeBase : verdeEscuro,
                             width: 1.2,
                           )
                         : null,
@@ -801,9 +772,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Text(
                         '$numeroDia',
                         style: TextStyle(
-                          color: selecionado
-                              ? corTextoSelecionado
-                              : corTexto,
+                          color: selecionado ? corTextoSelecionado : corTexto,
                           fontSize: 13,
                           fontWeight: selecionado
                               ? FontWeight.bold
@@ -840,31 +809,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildItemLegenda(
-    String rotulo,
-    Color cor,
-    Color corTexto,
-  ) {
+  Widget _buildItemLegenda(String rotulo, Color cor, Color corTexto) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: cor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: cor, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
         Flexible(
-          child: Text(
-            rotulo,
-            style: TextStyle(
-              color: corTexto,
-              fontSize: 10,
-            ),
-          ),
+          child: Text(rotulo, style: TextStyle(color: corTexto, fontSize: 10)),
         ),
       ],
     );
@@ -874,19 +830,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // TAREFAS DO DIA
   // ============================================================
 
-  Widget _buildSecaoTarefasDoDia(
-    bool escuro,
-    Color corTexto,
-  ) {
-    final corEtiqueta = escuro
-        ? const Color(0xFF29483F)
-        : verdeBase;
+  Widget _buildSecaoTarefasDoDia(bool escuro, Color corTexto) {
+    final corEtiqueta = escuro ? const Color(0xFF29483F) : verdeBase;
 
     final tarefas = _tarefasDoDia(_diaSelecionado);
 
-    final concluidas = tarefas.where(
-      (planta) => _regadaEm(planta, _diaSelecionado),
-    ).length;
+    final concluidas = tarefas.where((planta) {
+      return _regadaEm(planta, _diaSelecionado) ||
+          _registroDaDataPrevista(planta, _diaSelecionado) != null;
+    }).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -904,10 +856,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: corEtiqueta,
                 borderRadius: BorderRadius.circular(12),
@@ -931,14 +880,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: escuro
-                  ? const Color(0xFF1B383C)
-                  : fundoBege,
+              color: escuro ? const Color(0xFF1B383C) : fundoBege,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: verdeBase.withValues(
-                  alpha: escuro ? 0.6 : 0.5,
-                ),
+                color: verdeBase.withValues(alpha: escuro ? 0.6 : 0.5),
               ),
             ),
             child: Text(
@@ -954,23 +899,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
           )
         else
           ...tarefas.map((planta) {
-            final regada =
-                _regadaEm(planta, _diaSelecionado);
+            final regadaHoje = _regadaEm(planta, _diaSelecionado);
+
+            final registroPrevisto = _registroDaDataPrevista(
+              planta,
+              _diaSelecionado,
+            );
+
+            final realizadaComAtraso = _regadaComAtrasoEm(
+              planta,
+              _diaSelecionado,
+            );
+
+            final regada = regadaHoje || registroPrevisto != null;
 
             final ultima = _ultimaRega(planta);
             final cadastro = _dataCadastro(planta);
             final frequencia = _frequencia(planta);
 
-            final subtitulo = regada
-                ? 'Rega registrada neste dia'
+            final dataRealizacao = registroPrevisto == null
+                ? null
+                : _lerData(registroPrevisto['performed_at']);
+
+            final prevista = _proximaRegaPrevista(planta);
+            final hoje = _somenteData(DateTime.now());
+
+            final atrasada =
+                !regada &&
+                _somenteData(_diaSelecionado) == hoje &&
+                prevista != null &&
+                _somenteData(prevista).isBefore(hoje);
+
+            final subtitulo = realizadaComAtraso
+                ? 'Concluída com atraso em ${_formatarData(dataRealizacao!)}'
+                : regadaHoje
+                ? 'Rega realizada neste dia'
+                : regada
+                ? 'Rega prevista para este dia'
+                : atrasada
+                ? 'Cuidado atrasado desde ${_formatarData(prevista!)}'
                 : ultima != null
-                    ? 'Última rega: '
-                        '${_formatarData(ultima)} · '
-                        'Intervalo de $frequencia dias'
-                    : cadastro != null
-                        ? 'Primeira rega calculada a partir '
-                            'do cadastro · $frequencia dias'
-                        : 'Sem data de referência';
+                ? 'Última rega: ${_formatarData(ultima)} · '
+                      'Intervalo de $frequencia dias'
+                : cadastro != null
+                ? 'Primeira rega calculada a partir do cadastro · '
+                      '$frequencia dias'
+                : 'Sem data de referência';
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -1002,9 +976,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 '$concluidas cuidados concluídos. '
                 'Seu jardim agradece!',
                 style: TextStyle(
-                  color: escuro
-                      ? const Color(0xFFB8CCC5)
-                      : textoDetalhe,
+                  color: escuro ? const Color(0xFFB8CCC5) : textoDetalhe,
                   fontSize: 12,
                 ),
               ),
@@ -1027,15 +999,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     required VoidCallback? onTap,
     required bool carregando,
   }) {
-    final corFundo = escuro
-        ? const Color(0xFF1B383C)
-        : fundoBege;
+    final corFundo = escuro ? const Color(0xFF1B383C) : fundoBege;
 
     final corTexto = escuro ? Colors.white : verdeEscuro;
 
-    final corDetalhe = escuro
-        ? const Color(0xFFB8CCC5)
-        : textoDetalhe;
+    final corDetalhe = escuro ? const Color(0xFFB8CCC5) : textoDetalhe;
 
     final corIcone = escuro ? verdeBase : verdeEscuro;
 
@@ -1048,18 +1016,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
           color: corFundo,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: verdeBase.withValues(
-              alpha: escuro ? 0.6 : 0.5,
-            ),
+            color: verdeBase.withValues(alpha: escuro ? 0.6 : 0.5),
           ),
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.water_drop_outlined,
-              color: corIcone,
-              size: 20,
-            ),
+            Icon(Icons.water_drop_outlined, color: corIcone, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1071,18 +1033,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       color: corTexto,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      decoration: concluida
-                          ? TextDecoration.lineThrough
-                          : null,
+                      decoration: concluida ? TextDecoration.lineThrough : null,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     subtitulo,
-                    style: TextStyle(
-                      color: corDetalhe,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: corDetalhe, fontSize: 11),
                   ),
                   if (!concluida) ...[
                     const SizedBox(height: 4),
@@ -1091,10 +1048,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               _somenteData(DateTime.now())
                           ? 'Toque para registrar a rega'
                           : 'Selecione hoje para registrar a rega',
-                      style: TextStyle(
-                        color: corDetalhe,
-                        fontSize: 10,
-                      ),
+                      style: TextStyle(color: corDetalhe, fontSize: 10),
                     ),
                   ],
                 ],
@@ -1105,15 +1059,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2),
               )
             else
               Icon(
-                concluida
-                    ? Icons.check_box
-                    : Icons.check_box_outline_blank,
+                concluida ? Icons.check_box : Icons.check_box_outline_blank,
                 color: concluida ? verdeBase : corIcone,
                 size: 22,
               ),

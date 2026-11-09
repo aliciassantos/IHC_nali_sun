@@ -1,5 +1,6 @@
 // Operações CRUD da tabela 'care_logs'
 // Histórico de regas e adubações
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CareLogDAO {
@@ -21,19 +22,19 @@ class CareLogDAO {
 
     final response = await _supabase
         .from('care_logs')
-        .select('id, performed_at, plant_id, care_type')
+        .select(
+          'id, performed_at, scheduled_for, plant_id, care_type',
+        )
         .inFilter('plant_id', plantIds)
         .order('performed_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Registra uma rega no histórico.
-  ///
-  /// Primeiro verifica se a planta pertence ao usuário autenticado.
-  /// A política RLS de care_logs também deve validar essa propriedade.
+  /// Registra uma rega, separando a data prevista da data realizada.
   static Future<void> registrarRega({
     required int plantId,
+    required DateTime scheduledFor,
   }) async {
     final user = _supabase.auth.currentUser;
 
@@ -52,16 +53,24 @@ class CareLogDAO {
       throw Exception('Planta não encontrada ou sem permissão.');
     }
 
+    // Data e horário reais da execução.
     final agora = DateTime.now();
 
-    // Registra o cuidado sem apagar os registros anteriores.
+    // Formata a data prevista sem conversão de fuso horário.
+    final dataPrevista =
+        '${scheduledFor.year.toString().padLeft(4, '0')}-'
+        '${scheduledFor.month.toString().padLeft(2, '0')}-'
+        '${scheduledFor.day.toString().padLeft(2, '0')}';
+
+    // Mantém as duas datas no histórico.
     await _supabase.from('care_logs').insert({
       'plant_id': plantId,
       'care_type': 'watering',
+      'scheduled_for': dataPrevista,
       'performed_at': agora.toUtc().toIso8601String(),
     });
 
-    // Mantém a última rega sincronizada com a tabela plants.
+    // A última rega da planta corresponde à execução real.
     await _supabase
         .from('plants')
         .update({
