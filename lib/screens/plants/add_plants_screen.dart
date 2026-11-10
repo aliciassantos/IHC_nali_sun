@@ -8,7 +8,9 @@ import 'package:nali_sun_app/database/plant_dao.dart';
 import 'package:nali_sun_app/services/kindwise_service.dart';
 
 class AddPlantScreen extends StatefulWidget {
-  const AddPlantScreen({super.key});
+  final Map<String, dynamic>? plantToEdit;
+
+  const AddPlantScreen({super.key, this.plantToEdit});
 
   @override
   State<AddPlantScreen> createState() => _AddPlantScreenState();
@@ -19,6 +21,10 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _nomeController = TextEditingController();
   final _especieController = TextEditingController();
   String? _fotoPath;
+
+  // ==================== ESTADO DE EDIÇÃO ====================
+  Map<String, dynamic>? _plantaParaEditar;
+  bool get _isEditing => _plantaParaEditar != null;
 
   // ---------- Busca por nome (Kindwise) ----------
   final KindwisePlantService _plantService = KindwisePlantService();
@@ -74,12 +80,56 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Captura os argumentos da rota quando a navegação é feita via pushNamed
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic> && _plantaParaEditar == null) {
+      _plantaParaEditar = args;
+      _preencherCamposParaEdicao();
+    } else if (widget.plantToEdit != null && _plantaParaEditar == null) {
+      _plantaParaEditar = widget.plantToEdit;
+      _preencherCamposParaEdicao();
+    }
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
     _especieController.removeListener(_onSearchChanged);
     _nomeController.dispose();
     _especieController.dispose();
     super.dispose();
+  }
+
+  void _preencherCamposParaEdicao() {
+    if (_plantaParaEditar == null) return;
+
+    final p = _plantaParaEditar!;
+
+    // 1. Nome e Espécie
+    _nomeController.text = p['name']?.toString() ?? '';
+
+    // Usa _setEspecieText para preencher o texto sem disparar a busca automática da API
+    final especie = p['species']?.toString() ?? '';
+    if (especie.isNotEmpty) {
+      _setEspecieText(especie);
+    }
+
+    // 2. Frequência de Rega
+    final reqDays = (p['watering_frequency_days'] as num?)?.toDouble() ?? 7.0;
+    _frequenciaRega = reqDays.clamp(1.0, 30.0);
+
+    // 3. Luminosidade (encontra o índice correspondente no texto)
+    final lumTexto = p['luminosity']?.toString() ?? '';
+    final indexLum = _niveisLuminosidade.indexOf(lumTexto);
+    if (indexLum != -1) {
+      _luminosidadeIndex = indexLum.toDouble();
+    }
+
+    // 4. Imagem remota existente
+    _fotoPath = p['image_path']?.toString();
   }
 
   // ======================================================================
@@ -337,30 +387,48 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     final luminosidade = _niveisLuminosidade[_luminosidadeIndex.round()];
 
     try {
-      String? imageUrl;
+      String? imageUrl = _fotoPath; // Mantém a URL atual por padrão
 
+      // Se o usuário selecionou uma NOVA foto (bytes presentes), faz o upload
       if (_fotoBytes != null) {
         imageUrl = await PlantDAO.uploadFotoSupabase(_fotoBytes!);
       }
 
-      await PlantDAO.insertPlant(
-        name: nome,
-        species: especie,
-        wateringFrequencyDays: frequenciaRega,
-        luminosity: luminosidade,
-        imagePath: imageUrl
-      );
+      if (_isEditing) {
+        final plantId = int.parse(_plantaParaEditar!['id'].toString());
+
+        await PlantDAO.updatePlant(
+          plantId: plantId,
+          name: nome,
+          species: especie,
+          wateringFrequencyDays: frequenciaRega,
+          luminosity: luminosidade,
+          imagePath: imageUrl,
+        );
+      } else {
+        await PlantDAO.insertPlant(
+          name: nome,
+          species: especie,
+          wateringFrequencyDays: frequenciaRega,
+          luminosity: luminosidade,
+          imagePath: imageUrl,
+        );
+      }
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Planta cadastrada com sucesso! 🌿'),
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? 'Planta atualizada com sucesso! 🌿'
+                : 'Planta cadastrada com sucesso! 🌿',
+          ),
           backgroundColor: verdeAviso,
         ),
       );
 
-      // Informa à tela anterior que uma planta foi cadastrada.
+      // Retorna 'true' para atualizar as listas e telas anteriores
       Navigator.pop(context, true);
     } catch (e) {
       debugPrint('Erro ao salvar planta no Supabase: $e');
@@ -368,9 +436,11 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Não foi possível cadastrar a planta. Tente novamente.',
+            _isEditing
+                ? 'Não foi possível atualizar a planta. Tente novamente.'
+                : 'Não foi possível cadastrar a planta. Tente novamente.',
           ),
           backgroundColor: Colors.red,
         ),
@@ -409,8 +479,8 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
             ),
           ),
         ),
-        title: const Text(
-          'Nova Planta',
+        title: Text(
+          _isEditing ? 'Editar Planta' : 'Nova Planta',
           style: TextStyle(
             color: fundoBege,
             fontSize: 20,
@@ -781,7 +851,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       ),
       child: InkWell(
         onTap: _isIdentifying ? null : _escolherFoto,
-        child: _fotoBytes == null
+        child: (_fotoBytes == null && (_fotoPath == null || _fotoPath!.isEmpty))
             ? _conteudoUploadVazio()
             : _conteudoFotoSelecionada(),
       ),
@@ -818,14 +888,28 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   Widget _conteudoFotoSelecionada() {
+    Widget imagemWidget;
+
+    if (_fotoBytes != null) {
+      imagemWidget = Image.memory(
+        _fotoBytes!,
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+      );
+    } else {
+      imagemWidget = Image.network(
+        _fotoPath!,
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _conteudoUploadVazio(),
+      );
+    }
+
     return Stack(
       children: [
-        Image.memory(
-          _fotoBytes!,
-          height: 180,
-          width: double.infinity,
-          fit: BoxFit.cover,
-        ),
+        imagemWidget,
         if (_isIdentifying)
           Positioned.fill(
             child: Container(

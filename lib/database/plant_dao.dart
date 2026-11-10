@@ -26,8 +26,7 @@ class PlantDAO {
 
   static Future<String?> uploadFotoSupabase(Uint8List bytes) async {
     try {
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       final path = 'plants/$fileName';
 
@@ -36,9 +35,7 @@ class PlantDAO {
           .uploadBinary(
             path,
             bytes,
-            fileOptions: const FileOptions(
-              contentType: 'image/jpeg',
-            ),
+            fileOptions: const FileOptions(contentType: 'image/jpeg'),
           );
 
       final publicUrl = _supabase.storage
@@ -71,8 +68,7 @@ class PlantDAO {
       'name': name.trim(),
       'species': species.trim(),
       'watering_frequency_days': wateringFrequencyDays,
-      'last_watered_at':
-          lastWateredAt?.toUtc().toIso8601String(),
+      'last_watered_at': lastWateredAt?.toUtc().toIso8601String(),
       'luminosity': luminosity,
       'image_path': imagePath,
     };
@@ -108,8 +104,7 @@ class PlantDAO {
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
-      final plantas =
-          List<Map<String, dynamic>>.from(response);
+      final plantas = List<Map<String, dynamic>>.from(response);
 
       debugPrint('========== MEU JARDIM ==========');
       debugPrint('Usuário autenticado: true');
@@ -129,9 +124,7 @@ class PlantDAO {
   // BUSCA DE UMA PLANTA
   // ============================================================
 
-  static Future<Map<String, dynamic>?> getPlantById(
-    int plantId,
-  ) async {
+  static Future<Map<String, dynamic>?> getPlantById(int plantId) async {
     final userId = _getUserId();
 
     final response = await _supabase
@@ -169,8 +162,7 @@ class PlantDAO {
 
     // Só altera a última rega quando uma data for informada.
     if (lastWateredAt != null) {
-      plantData['last_watered_at'] =
-          lastWateredAt.toUtc().toIso8601String();
+      plantData['last_watered_at'] = lastWateredAt.toUtc().toIso8601String();
     }
 
     // Só altera a foto quando um novo caminho for informado.
@@ -201,5 +193,26 @@ class PlantDAO {
         .delete()
         .eq('id', plantId)
         .eq('user_id', userId);
+  }
+
+  // ============================================================
+  // DETALHES DA PLANTA
+  // ============================================================
+
+  static Future<int> buscarRegasDoMes(String plantId) async {
+    final inicioDoMes = DateTime(DateTime.now().year, DateTime.now().month, 1);
+
+    try {
+      final response = await _supabase
+          .from('watering_history')
+          .select()
+          .eq('plant_id', int.parse(plantId))
+          .gte('watering_date', inicioDoMes.toIso8601String());
+
+      return (response as List).length;
+    } catch (e) {
+      debugPrint('Erro ao buscar regas do mês: $e');
+      return 0;
+    }
   }
 }

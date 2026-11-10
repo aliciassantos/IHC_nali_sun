@@ -22,9 +22,7 @@ class CareLogDAO {
 
     final response = await _supabase
         .from('care_logs')
-        .select(
-          'id, performed_at, scheduled_for, plant_id, care_type',
-        )
+        .select('id, performed_at, scheduled_for, plant_id, care_type')
         .inFilter('plant_id', plantIds)
         .order('performed_at', ascending: false);
 
@@ -70,12 +68,15 @@ class CareLogDAO {
       'performed_at': agora.toUtc().toIso8601String(),
     });
 
+    await _supabase.from('watering_history').insert({
+      'plant_id': plantId,
+      'watering_date': agora.toUtc().toIso8601String(),
+    });
+
     // A última rega da planta corresponde à execução real.
     await _supabase
         .from('plants')
-        .update({
-          'last_watered_at': agora.toUtc().toIso8601String(),
-        })
+        .update({'last_watered_at': agora.toUtc().toIso8601String()})
         .eq('id', plantId)
         .eq('user_id', user.id);
   }

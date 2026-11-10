@@ -50,15 +50,17 @@ class AppRoutes {
       plantDetails: (context) {
         final argumentos = ModalRoute.of(context)?.settings.arguments;
 
-        if (argumentos is! String) {
-          throw ArgumentError(
-            'O ID da planta deve ser informado como String.',
+        // Se for nulo (após refresh), redireciona ou trata graciosamente
+        if (argumentos is! String || argumentos.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushReplacementNamed(context, home);
+          });
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        return PlantDetailsScreen(
-          plantId: argumentos,
-        );
+        return PlantDetailsScreen(plantId: argumentos);
       },
     };
   }
