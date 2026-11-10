@@ -26,7 +26,7 @@ Um sinal de que o substrato pode não estar adequado é a dificuldade de drenage
 
 Antes de trocar o substrato, pesquise as necessidades específicas da planta. Uma boa escolha pode favorecer o crescimento e ajudar a evitar problemas relacionados ao excesso ou à falta de água.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/substrato.jpg',
     ),
 
     // 2. REGA
@@ -45,7 +45,7 @@ Evite deixar água acumulada no pratinho por longos períodos. O excesso de umid
 
 O calendário de rega deve funcionar como um lembrete, não como uma obrigação. Aprenda a observar sua planta e adapte os cuidados às condições do ambiente.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/rega.jpg',
     ),
 
     // 3. ILUMINAÇÃO
@@ -64,7 +64,7 @@ Observe os sinais apresentados pelas folhas. Folhas queimadas, manchas secas e a
 
 Antes de escolher o local definitivo, pesquise as necessidades da espécie. Também evite mudanças muito bruscas, permitindo que a planta se adapte gradualmente a uma nova condição de luz.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/iluminacao.jpg',
     ),
 
     // 4. PODA
@@ -85,7 +85,7 @@ Algumas espécies possuem épocas mais adequadas para poda, especialmente aquela
 
 Lembre-se: podar não significa cortar o máximo possível. O objetivo é remover o que está prejudicando a planta e respeitar seu ritmo natural de crescimento.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/poda.jpg',
     ),
 
     // 5. ADUBAÇÃO
@@ -106,7 +106,7 @@ Antes de adubar, verifique se a planta realmente precisa de nutrientes adicionai
 
 Uma rotina equilibrada de adubação, associada à iluminação e à rega adequadas, ajuda a manter melhores condições para o desenvolvimento da planta.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/adubacao.jpg',
     ),
 
     // 6. DRENAGEM
@@ -127,7 +127,7 @@ A drenagem precisa funcionar em conjunto com a escolha do substrato e a frequên
 
 Antes de escolher um recipiente, considere o tamanho da planta, suas raízes e as necessidades específicas da espécie.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/vasos.jpg',
     ),
 
     // 7. LIMPEZA DAS FOLHAS
@@ -150,7 +150,7 @@ Esse momento também pode ser utilizado para observar possíveis alterações. M
 
 Além de melhorar a aparência, a manutenção permite acompanhar mais de perto a saúde da planta.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/manutencao.jpg',
     ),
 
     // 8. PRAGAS
@@ -171,7 +171,7 @@ Quando possível, mantenha temporariamente a planta afetada separada das demais 
 
 A inspeção frequente é uma forma simples de acompanhar a saúde do jardim. Quanto mais cedo um problema for percebido, maiores podem ser as possibilidades de controlar a situação.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/prevencao.jpg',
     ),
 
     // 9. REPLANTIO
@@ -192,7 +192,7 @@ Durante a transferência, manuseie as raízes com cuidado e evite remover partes
 
 Depois do replantio, acompanhe a adaptação da planta e evite mudanças bruscas na iluminação e no ambiente. Cada espécie possui características próprias, por isso é importante pesquisar as recomendações específicas antes de realizar a troca.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/replantio.jpg',
     ),
 
     // 10. AMBIENTE
@@ -213,7 +213,7 @@ Observe onde sua planta está posicionada. Ambientes próximos a aparelhos de ar
 
 Antes de escolher o local definitivo, procure conhecer as preferências da espécie. Um ambiente adequado não depende apenas de beleza, mas também das condições necessárias para o desenvolvimento saudável da planta.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/ambientecomplanta.jpg',
     ),
 
     // 11. BEM-ESTAR
@@ -234,7 +234,7 @@ Não é necessário ter um espaço grande para começar. Uma pequena planta em u
 
 Escolha espécies compatíveis com o espaço e com o tempo disponível para os cuidados. O mais importante é compreender que cada planta possui um ritmo próprio e precisa de atenção adequada.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/bem_estar.jpg',
     ),
 
     // 12. PROPAGAÇÃO
@@ -255,7 +255,7 @@ O surgimento de raízes pode levar dias ou semanas, dependendo da espécie, da t
 
 A estaquia é uma maneira interessante de multiplicar plantas e ampliar o jardim. Antes de começar, pesquise o método mais indicado para a espécie que deseja reproduzir.
 ''',
-      imagem: _imagemPadrao,
+      imagem: '../assets/img/propagacao.jpg',
     ),
   ];
 
