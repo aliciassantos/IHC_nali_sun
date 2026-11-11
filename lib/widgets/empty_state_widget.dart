@@ -1,1 +1,0 @@
-// Exibição quando não há dados (Lottie)

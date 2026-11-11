@@ -1,1 +1,0 @@
-// Card do artigo de dicas

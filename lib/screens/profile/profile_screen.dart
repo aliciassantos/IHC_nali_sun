@@ -948,72 +948,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
             firstChild: const SizedBox(width: double.infinity, height: 0),
             secondChild: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Column(
-                children: [
-                  _buildOpcaoTema(
-                    icone: Icons.wb_sunny_outlined,
-                    titulo: 'Claro',
-                    selecionado: !tema.isDarkMode,
-                    escuro: escuro,
-                    onTap: () async {
-                      await tema.setDarkMode(false);
-                    },
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: Icon(
+                  tema.isDarkMode
+                      ? Icons.nightlight_outlined
+                      : Icons.wb_sunny_outlined,
+                  color: corTexto,
+                  size: 22,
+                ),
+                title: Text(
+                  'Tema',
+                  style: TextStyle(
+                    color: corTexto,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
-                  _buildOpcaoTema(
-                    icone: Icons.nightlight_outlined,
-                    titulo: 'Escuro',
-                    selecionado: tema.isDarkMode,
-                    escuro: escuro,
-                    onTap: () async {
-                      await tema.setDarkMode(true);
-                    },
+                ),
+                subtitle: Text(
+                  tema.isDarkMode
+                      ? 'Tema escuro ativado'
+                      : 'Tema claro ativado',
+                  style: TextStyle(
+                    color: corTexto.withValues(alpha: 0.75),
+                    fontSize: 11,
                   ),
-                ],
+                ),
+                value: tema.isDarkMode,
+                activeThumbColor: verdeAvisoCard,
+                onChanged: (valor) async {
+                  await tema.setDarkMode(valor);
+                },
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildOpcaoTema({
-    required IconData icone,
-    required String titulo,
-    required bool selecionado,
-    required bool escuro,
-    required VoidCallback onTap,
-  }) {
-    final corTexto = escuro ? Colors.white : verdeEscuro;
-    final corIcone = escuro ? fundoBege : verdeEscuro;
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
-        child: Row(
-          children: [
-            Icon(icone, color: corIcone, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                titulo,
-                style: TextStyle(
-                  color: corTexto,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            Icon(
-              selecionado ? Icons.check_circle_outline : Icons.circle,
-              color: selecionado
-                  ? verdeBase
-                  : (escuro ? Colors.white70 : Colors.blueGrey.shade300),
-              size: selecionado ? 18 : 20,
-            ),
-          ],
-        ),
       ),
     );
   }
